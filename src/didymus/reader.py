@@ -1,4 +1,4 @@
-# import here
+# imports
 import numpy as np
 from didymus import pebble as peb
 
