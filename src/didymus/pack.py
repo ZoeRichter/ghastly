@@ -138,14 +138,25 @@ def jt_algo(core, peb_r,coords,n_pebs,k):
 	#step 1: find initial d_out, which is d such that pf = 1
 	if type(core) == di.core.CylCore:
 		core_vol = (np.pi*(core.core_r**2))*core.core_h     
-	d_out_init = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebs))
+	d_out = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebs))
 	
 	#step 2: probabilistic nearest neighbor search
 	#to find worst overlap (shortest rod) (god help us all)
 	
 	#we can get the starting rod queue (and nearest neighbor)
 	# with the nearneigh function
-	
+	overlap = True
+	while overlap:
+		rod_queue = nearneigh(core,peb_r,coords)
+		d_in = min(rod_queue.values())
+		for rod in rod_queue:
+			coords[rod[0]],coords[rod[1]] = move(core,
+												coords,
+												rod,
+												rod_queue[rod],
+												d_out)
+			break
+		overlap = False
 	
 	return coords
 	
@@ -288,3 +299,24 @@ def meshgrid(core,coords,N,delta):
 		
 		
 	return meshind
+
+def move(core, coords,pair, rod, d_out):
+	'''
+	moves the two points in rod so they are d_out apart
+	'''
+	
+	l = (d_out-rod)/2
+	p1 = coords[pair[0]]
+	p2 = coords[pair[1]]
+	up1p2 = np.ndarray([(p2[0]-p1[0])/rod, (p2[1]-p1[1])/rod, (p2[2]-p1[2])/rod])
+	
+	for i, p in enumerate(p1):
+		p1[i] = p + up1p2*l
+	for i, p in enumerate(p2):
+		p2[i] = p - up1p2*l
+		
+	print(d_out)
+	print(np.linalg.norm(coords[p1]-coords[p2]))
+	
+	return p1,p2
+	
