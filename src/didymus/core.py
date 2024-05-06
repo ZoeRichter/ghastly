@@ -8,7 +8,7 @@ class Core:
 	information necessary to determine the core geometry and
 	flow direction.
 	'''
-	def __init__(self,origin=np.zeros(3),downward_flow=True):
+	def __init__(self,origin=np.zeros(3),downward_flow=True,buff=10**(-3)):
 		'''
 		Initializes a single instance of a Core object.  As
 		this does not specify the shape of the core, the Core
@@ -23,10 +23,14 @@ class Core:
 		downward_flow : bool
 		    Whether axial flow in the core is upward or downward.
 		    True means flow is downward, False means it is upward.
+		buff : float
+			Buffer distance used in determining maximum pebble coordinates,
+			used to prevent pebble surfaces overlapping core surfaces
 		
 		'''
 		self.origin = origin
 		self.downward_flow = downward_flow
+		self.buff = buff
 	
 class CylCore(Core):
 	'''

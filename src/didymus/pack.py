@@ -7,7 +7,7 @@ from didymus import core
 from didymus import pebble
 rng = np.random.default_rng()
 
-def pebble_packing(core, peb_r, n_pebs=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=0.00001):
+def pebble_packing(core, peb_r, n_pebs=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**(-3)):
 	'''
 	Function to pack pebbles into a cylindrical core (see the CylCore
 	Class) using the Jodrey-Tory method.  Users must either define
@@ -39,7 +39,7 @@ def pebble_packing(core, peb_r, n_pebs=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=0.00001
 		generated pebbles, the choice of mat_id favors the pebbles
 	    with greatest weight.
 	k : float
-	    Initial contraction rate, to be used with Jodrey-Tory
+	    Contraction rate, to be used with Jodrey-Tory
 	    Algorithm
     
 	'''
@@ -52,7 +52,6 @@ def pebble_packing(core, peb_r, n_pebs=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=0.00001
 	assert type(core) == di.core.CylCore, "Only CylCore is currently supported"
 	
 	if n_pebs != 0 and pf == 0:
-		assert n_mat_ids != 0, "n_mat_ids must be defined if using n_pebs"
 		assert type(n_mat_ids) == np.ndarray,"n_mat_ids must be a numpy array with length equal to n_pebs"
 		assert len(n_mat_ids) == n_pebs,"n_mat_ids must be a numpy array with length equal to n_pebs"
 		pf = n_to_pf(core, peb_r,n_pebs)
@@ -76,20 +75,18 @@ def pebble_packing(core, peb_r, n_pebs=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=0.00001
 	
 	final_coords = jt_algo(core, peb_r,init_coords,n_pebs,k)
 	
+	return final_coords
 	
-		
-		
-		
 		
 def pf_to_n(core, peb_r, pf):
 	'''
 	Converts packing fraction to number of pebbles
 	'''
 	if type(core) == di.core.CylCore:
-		core_vol = (np.pi*(core_r**2))*core_h
+		core_vol = (np.pi*(core.core_r**2))*core.core_h
 		p_vol_tot = pf*core_vol
 		p_vol = (4/3)*np.pi*peb_r**3
-		n_pebs = np.floor(p_vol_tot/p_vol)
+		n_pebs = int(np.floor(p_vol_tot/p_vol))
 		return n_pebs
 		
 
@@ -112,16 +109,16 @@ def find_start_coords(core, peb_r, n_pebs):
 	'''
 	
 	#determine dimension upper and lower bounds
-	z_up = core.origin[2] + 0.5*core.core_h - peb_r
-	z_low = core.origin[2] -0.5*core.core_h + peb_r + 10**(-5)
-	r_up = core.core_r - peb_r
+	z_up = core.origin[2] + 0.5*core.core_h - peb_r -core.buff
+	z_low = core.origin[2] -0.5*core.core_h + peb_r + core.buff
+	r_up = core.core_r - peb_r -core.buff
 	
 	coords = np.empty(n_pebs,dtype=np.ndarray)
 	for i in range(n_pebs):
 		f = rng.random()
 		theta = rng.uniform(0,2*np.pi)
-		x = f*r_up*np.cos(theta)
-		y = f*r_up*np.sin(theta)
+		x = core.origin[0] + f*r_up*np.cos(theta)
+		y = core.origin[1] + f*r_up*np.sin(theta)
 		z = rng.uniform(z_low,z_up)
 		coords[i] = np.array([x,y,z])
 		
@@ -138,7 +135,8 @@ def jt_algo(core, peb_r,coords,n_pebs,k):
 	#step 1: find initial d_out, which is d such that pf = 1
 	if type(core) == di.core.CylCore:
 		core_vol = (np.pi*(core.core_r**2))*core.core_h     
-	d_out = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebs))
+	d_out_0 = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebs))
+	d_out = d_out_0
 	
 	#step 2: probabilistic nearest neighbor search
 	#to find worst overlap (shortest rod) (god help us all)
@@ -146,18 +144,39 @@ def jt_algo(core, peb_r,coords,n_pebs,k):
 	#we can get the starting rod queue (and nearest neighbor)
 	# with the nearneigh function
 	overlap = True
+	i = 0
 	while overlap:
 		rod_queue = nearneigh(core,peb_r,coords)
-		d_in = min(rod_queue.values())
-		for rod in rod_queue:
-			coords[rod[0]],coords[rod[1]] = move(core,
-												coords,
-												rod,
-												rod_queue[rod],
-												d_out)
+		if not rod_queue:
+			overlap = False
 			break
-		overlap = False
+		else:
+			for rod in rod_queue:
+				d_in = min(rod_queue.values())
+				p1 = rod[0]
+				p2 = rod[1]
+				coords[p1],coords[p2] = move(core,
+										peb_r,
+										coords,
+										rod,
+										rod_queue[rod],
+										d_out)
+				del_pf = n_to_pf(core,d_out/2,n_pebs)-n_to_pf(core,d_in/2,n_pebs)
+				if d_out < d_in:
+					print('''Outer diameter and inner diameter converged too quickly.
+					Try again with a smaller contraction rate.''')
+					print("Maximum possible diameter with current packing:", d_in)
+					overlap = False
+					break
+				j = math.floor(-np.log10(abs(del_pf)))
+				d_out = d_out - (0.5**j)*(k/n_pebs)*d_out_0
+				i += 1
+		if i > 10**8:
+			overlap = False
+			print("Did not reach packing fraction")
+			print("Maximum possible pebble diameter with current packing is ", d_in)
 	
+	print(i)
 	return coords
 	
 def nearneigh(core, peb_r, coords):
@@ -240,8 +259,7 @@ def nearneigh(core, peb_r, coords):
 			temp_keys = list(temp.keys())
 			for tkey in temp_keys:
 				if temp[tkey] != min(temp.values()):
-					del rods[pair]
-			
+					del rods[tkey]
 	return rods
 		
 def selectpair(coords,N):
@@ -256,7 +274,7 @@ def selectpair(coords,N):
 		
 	if p1 > p2:
 			p1, p2 = p2, p1
-	return p1, p2
+	return int(p1), int(p2)
 	
 def meshgrid(core,coords,N,delta):
 	'''
@@ -272,26 +290,38 @@ def meshgrid(core,coords,N,delta):
 	Mz = math.ceil(core.core_h/delta)
 	z_min = core.origin[2] - core.core_h/2
 	fild_sqrs = np.empty(N, dtype=object)
-	#on second thought, maybe finding meshind/lattice should be its own function.
 	for i, p in enumerate(coords):
+		ix,iy,iz = None, None, None
 		for j in range(Mx):
 			if p[0] > (x_min + j*delta) and p[0] <= (x_min + (j+1)*delta):
 				ix = j
 				break
 			else:
-				pass
+				if j == Mx-1:
+					if not ix:
+						ix = j
+					else:
+						pass
 		for k in range(My):
 			if p[1] > (y_min + k*delta) and p[1] <= (y_min + (k+1)*delta):
 				iy = k
 				break
 			else:
-				pass
+				if k == My-1:
+					if not iy:
+						iy = k
+					else:
+						pass
 		for l in range(Mz):
 			if p[2] > (z_min + l*delta) and p[2] <= (z_min + (l+1)*delta):
 				iz = l
 				break
 			else:
-				pass
+				if l == Mz-1:
+					if not iz:
+						iz = l
+					else:
+						pass
 		fild_sqrs[i] = (ix,iy,iz)
 	meshind = defaultdict(list)
 	for i, v in enumerate(fild_sqrs):
@@ -300,23 +330,53 @@ def meshgrid(core,coords,N,delta):
 		
 	return meshind
 
-def move(core, coords,pair, rod, d_out):
+def move(core,peb_r, coords, pair, rod, d_out):
 	'''
 	moves the two points in rod so they are d_out apart
 	'''
-	
 	l = (d_out-rod)/2
 	p1 = coords[pair[0]]
 	p2 = coords[pair[1]]
-	up1p2 = np.ndarray([(p2[0]-p1[0])/rod, (p2[1]-p1[1])/rod, (p2[2]-p1[2])/rod])
+	ux, uy, uz = (p1[0]-p2[0])/rod,(p1[1]-p2[1])/rod,(p1[2]-p2[2])/rod
+	up1p2 = np.array([ux,uy,uz])
+	
+	z_up = core.origin[2] + 0.5*core.core_h - peb_r -core.buff
+	z_low = core.origin[2] -0.5*core.core_h + peb_r +core.buff
+	r_up = core.core_r - peb_r -core.buff
 	
 	for i, p in enumerate(p1):
-		p1[i] = p + up1p2*l
+		p1[i] = p + up1p2[i]*l
+		if i == 0: #x
+			if abs(p1[i]) > core.origin[0]+r_up:
+				theta = np.arctan(ux/uy)
+				p1[i] = core.origin[0]+ r_up*np.cos(theta)
+		if i == 1: #y
+			if abs(p1[i]) > core.origin[1]+r_up:
+				theta = np.arctan(ux/uy)
+				p1[i] = core.origin[1]+ r_up*np.sin(theta)	
+		else: #z
+			if p1[i] > z_up:
+				p1[i] = z_up
+			elif p1[i] < z_low:
+				p1[i] = z_low
+				
 	for i, p in enumerate(p2):
-		p2[i] = p - up1p2*l
+		p2[i] = p - up1p2[i]*l
+		if i == 0: #x
+			if abs(p2[i]) > r_up:
+				theta = np.arctan(ux/uy)
+				p2[i] = core.origin[0]-r_up*np.cos(theta)
+		if i == 1: #y
+			if abs(p2[i]) > r_up:
+				theta = np.arctan(ux/uy)
+				p2[i] = core.origin[1]-r_up*np.sin(theta)	
+		else: #z
+			if p2[i] > z_up:
+				p2[i] = z_up
+			elif p2[i] < z_low:
+				p2[i] = z_low
 		
-	print(d_out)
-	print(np.linalg.norm(coords[p1]-coords[p2]))
+	
 	
 	return p1,p2
 	
