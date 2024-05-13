@@ -7,7 +7,7 @@ from didymus import pebble as peb
 class OpenmcReader():
     """
     Class for reading Openmc pebble coordinates from the
-    OpenMC pack_spheres() function into and arrary of
+    OpenMC pack_spheres() function into and array of
     distinct Pebble objects.
     """
 
