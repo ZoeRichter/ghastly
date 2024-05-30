@@ -6,7 +6,7 @@ from didymus import core
 from didymus import pebble
 rng = np.random.default_rng()
 
-def pebble_packing(active_core, pebble_r, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**(-3)):
+def pebble_packing(active_core, pebble_radius, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**(-3)):
 	'''
 	Function to pack pebbles into a cylindrical core (see the CylCore
 	Class) using the Jodrey-Tory method.  Users must either define
@@ -18,7 +18,7 @@ def pebble_packing(active_core, pebble_r, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_id
     ----------
     active_core : didymus CylCore object
 		CylCore object defining the active core shape and flow
-	pebble_r : float
+	pebble_radius : float
 		Pebble radius.  Units must match those in core
 	n_pebbles : int
 		Number of pebbles to be packed in core.  Either
@@ -40,6 +40,13 @@ def pebble_packing(active_core, pebble_r, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_id
 	k : float
 	    Contraction rate, to be used with Jodrey-Tory
 	    Algorithm
+	    
+	Returns:
+	----------
+	pebbles : list
+		A list of length n_pebbles (or the equivalent number of pebbles,
+		if packing fraction was provided, with each element containing an instance of
+		a :class:`didymus.Pebble`
     
 	'''
 	
@@ -53,39 +60,75 @@ def pebble_packing(active_core, pebble_r, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_id
 	if n_pebbles != 0 and pf == 0:
 		assert type(n_mat_ids) == np.ndarray,"n_mat_ids must be a numpy array with length equal to n_pebbles"
 		assert len(n_mat_ids) == n_pebbles,"n_mat_ids must be a numpy array with length equal to n_pebbles"
-		pf = n_to_pf(active_core, pebble_r,n_pebbles)
+		pf = n_to_pf(active_core, pebble_radius,n_pebbles)
 		print("Equivalent packing fraction is " + str(pf))
+		using_pf = False
 		assert pf <= 0.6, "pf must be less than or equal to 0.6.  n_pebbles is too high."
 		
 	elif pf != 0 and n_pebbles == 0:
 		assert pf_mat_ids != 0, "pf_mat_ids must be defined if using pf"
 		assert type(pf_mat_ids) == dict, "pf_mat_ids must be a dictionary"
-		n_pebbles = pf_to_n(active_core, pebble_r, pf)
+		n_pebbles = pf_to_n(active_core, pebble_radius, pf)
 		print("Equivalent number of pebbles is " + str(n_pebbles))
+		using_pf = True
 		
-	#after assertions, just move forward with n_pebbles when you
-	#find the starting coords
-	init_coords = find_start_coords(active_core, pebble_r, n_pebbles)
+	#find the starting coords guess
+	init_coords = find_start_coords(active_core, pebble_radius, n_pebbles)
 	
 	#now we actually get into the Jodrey-Tory algorithm, with the added
 	#help of Rabin-Lipton method of probalisticaly solving the
-	#nearest neighbor problem, so we're not brute-force searching for
-	#the nearest neighbor.
+	#nearest neighbor problem
 	
-	final_coords = jt_algorithm(active_core, pebble_r,init_coords,n_pebbles,k)
+	final_coords = jt_algorithm(active_core, pebble_radius,init_coords,n_pebbles,k)
 	
-	return final_coords
+	#generate the list of didymus pebbles.  the specific method changes with
+	#whether the user originally gave pf or N
+	if using_pf == False:
+		pebbles = [pebble.Pebble(coord, pebble_radius, n_mat_ids[i],i) for i,
+		 coord in enumerate(final_coords)]
+	#if pf was given, we first need to determine the number of whole pebbles
+	#of each provided material id (trying to stay close to what the user provided,
+	#except you can only have whole pebbles
+	else:
+		pebble_split = {}
+		normalize = sum(f for f in pf_mat_ids.values())
+		for i, key in enumerate(pf_mat_ids):
+			if i<len(pf_mat_ids)-1:
+				n = np.round(n_pebbles*(pf_mat_ids[key]/normalize))
+				pebble_split[key] = [pf_mat_ids[key], int(n)]
+			else:
+				current_total = sum(p[1] for p in pebble_split.values())
+				pebble_split[i] = [pf_mat_ids[key],int(n_pebbles-current_total)]
+		#then, once you know the pebble split, actually generate the pebbles
+		pebbles =[]
+		counter = 0
+		for key in pebble_split:
+			for _ in range(pebble_split[key][1]):
+				pebbles.append(pebble.Pebble(final_coords[counter], pebble_radius, key ,counter))
+				counter+=1
+			
+				
+		#maybe open discussion for how you're implementing this specific part^ next meeting
+	#tests: 
+	#because assigning coords to pebbles goes through final_coords in order, the origin
+	#of a pebbles[i] should match final_coords[i]
+	# pebble.pebble_radius should match pebble_radius
+	#if gave n_pebs:len(pebbles) should match n_pebs
+	#if gave pf: vol of pebbles/core volume should approximately be equal to pf
+	
+	return pebbles
 	
 		
-def pf_to_n(active_core, pebble_r, pf):
+def pf_to_n(active_core, pebble_radius, pf):
 	'''
-	Converts packing fraction, pf, to number of pebbles, n_pebbles
+	Converts packing fraction, pf, to number of pebbles, n_pebbles.  Uses
+	floor function to round to nearest integer.
 
     Parameters
     ----------
     active_core : didymus CylCore object
 		didymus CylCore object defining pebble-filled region of the core.
-    pebble_r : float
+    pebble_radius : float
 		Radius of a single pebble, with units matching those
 		used to create center coordinates.
 	pf : float
@@ -98,22 +141,22 @@ def pf_to_n(active_core, pebble_r, pf):
      
 	'''
 	if type(active_core) == di.core.CylCore:
-		core_vol = (np.pi*(active_core.core_r**2))*active_core.core_h
+		core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
 		p_vol_tot = pf*core_vol
-		p_vol = (4/3)*np.pi*pebble_r**3
-		n_pebbles = np.floor(p_vol_tot/p_vol, dtype=int)
+		p_vol = (4/3)*np.pi*pebble_radius**3
+		n_pebbles = int(np.floor(p_vol_tot/p_vol))
 		return n_pebbles
 		
 
-def n_to_pf(active_core, pebble_r, n_pebbles):
+def n_to_pf(active_core, pebble_radius, n_pebbles):
 	'''
-	Converts number of pebbles to packing fraction
+	Converts number of pebbles, n_pebbles, to packing fraction, pf
 	
 	Parameters
     ----------
     active_core : didymus CylCore object
 		didymus CylCore object defining pebble-filled region of the core.
-    pebble_r : float
+    pebble_radius : float
 		Radius of a single pebble, with units matching those
 		used to create center coordinates.
 	n_pebbles : int
@@ -125,14 +168,14 @@ def n_to_pf(active_core, pebble_r, n_pebbles):
 		Packing fraction, given in decimal format
 	'''
 	if type(active_core) == di.core.CylCore:
-		core_vol = (np.pi*(active_core.core_r**2))*active_core.core_h
-		p_vol = (4/3)*np.pi*pebble_r**3
+		core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
+		p_vol = (4/3)*np.pi*pebble_radius**3
 		p_vol_tot = p_vol*n_pebbles
 		pf = p_vol_tot/core_vol
 		return pf
 
 
-def find_start_coords(active_core, pebble_r, n_pebbles):
+def find_start_coords(active_core, pebble_radius, n_pebbles):
 	'''
 	Generates an array of starting center coordinates for pebble
 	packing
@@ -141,7 +184,7 @@ def find_start_coords(active_core, pebble_r, n_pebbles):
     ----------
     active_core : didymus CylCore object
 		didymus CylCore object defining pebble-filled region of the core.
-    pebble_r : float
+    pebble_radius : float
 		Radius of a single pebble, with units matching those
 		used to create center coordinates.
 	n_pebbles : int
@@ -155,9 +198,9 @@ def find_start_coords(active_core, pebble_r, n_pebbles):
 	'''
 	
 	#determine dimension upper and lower bounds
-	z_up = active_core.origin[2] + 0.5*active_core.core_h - pebble_r -active_core.buff
-	z_low = active_core.origin[2] -0.5*active_core.core_h + pebble_r + active_core.buff
-	r_up = active_core.core_r - pebble_r -active_core.buff
+	z_up = active_core.origin[2] + 0.5*active_core.core_height - pebble_radius -active_core.buff
+	z_low = active_core.origin[2] -0.5*active_core.core_height + pebble_radius + active_core.buff
+	r_up = active_core.core_radius - pebble_radius -active_core.buff
 	
 	coords = np.empty(n_pebbles,dtype=np.ndarray)
 	for i in range(n_pebbles):
@@ -171,17 +214,17 @@ def find_start_coords(active_core, pebble_r, n_pebbles):
 		
 	return coords
 	
-def jt_algorithm(active_core, pebble_r,coords,n_pebbles,k):
+def jt_algorithm(active_core, pebble_radius,coords,n_pebbles,k):
 	'''
-	Performs the Jodrey-Tory algorithm (see: ***PUT DOI HERE***)
-	to remove overlap from given pebble coords and return
-	updated coords
+	Performs the Jodrey-Tory algorithm to remove overlap from given 
+	pebble coordinates and return non-overlapping coordinates
+	(see: DOI:https://doi.org/10.1103/PhysRevA.32.2347)
 	
 	Parameters
     ----------
     active_core : didymus CylCore object
 		didymus CylCore object defining pebble-filled region of the core.
-    pebble_r : float
+    pebble_radius : float
 		Radius of a single pebble, with units matching those
 		used to create center coordinates.
 	coords : numpy array
@@ -203,7 +246,7 @@ def jt_algorithm(active_core, pebble_r,coords,n_pebbles,k):
 	
 	#step 1: find initial d_out, which is d such that pf = 1
 	if type(active_core) == di.core.CylCore:
-		core_vol = (np.pi*(active_core.core_r**2))*active_core.core_h     
+		core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height     
 	d_out_0 = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebbles))
 	d_out = d_out_0
 	
@@ -215,7 +258,7 @@ def jt_algorithm(active_core, pebble_r,coords,n_pebbles,k):
 	overlap = True
 	i = 0
 	while overlap:
-		rod_queue = nearest_neighbor(active_core,pebble_r,coords,n_pebbles)
+		rod_queue = nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
 		if not rod_queue:
 			overlap = False
 			break
@@ -225,7 +268,7 @@ def jt_algorithm(active_core, pebble_r,coords,n_pebbles,k):
 				p1 = rod[0]
 				p2 = rod[1]
 				coords[p1],coords[p2] = move(active_core,
-										pebble_r,
+										pebble_radius,
 										coords,
 										rod,
 										rod_queue[rod],
@@ -237,7 +280,7 @@ def jt_algorithm(active_core, pebble_r,coords,n_pebbles,k):
 					overlap = False
 					break
 				del_pf = n_to_pf(active_core,d_out/2,n_pebbles)-n_to_pf(active_core,d_in/2,n_pebbles)
-				j = np.floor(-np.log10(abs(del_pf)), dtype=int)
+				j = int(np.floor(-np.log10(abs(del_pf))))
 				d_out = d_out - (0.5**j)*(k/n_pebbles)*d_out_0
 				i += 1
 		if i > 10**8:
@@ -248,7 +291,7 @@ def jt_algorithm(active_core, pebble_r,coords,n_pebbles,k):
 	print(i)
 	return coords
 	
-def nearest_neighbor(active_core, pebble_r, coords,n_pebbles):
+def nearest_neighbor(active_core, pebble_radius, coords,n_pebbles):
 	'''
 	Performs Lipton-modified Rabin algorithm for the
 	nearest neighbor search problem
@@ -257,7 +300,7 @@ def nearest_neighbor(active_core, pebble_r, coords,n_pebbles):
     ----------
     active_core : didymus CylCore object
 		didymus CylCore object defining pebble-filled region of the core.
-    pebble_r : float
+    pebble_radius : float
 		Radius of a single pebble, with units matching those
 		used to create center coordinates.
 	coords : numpy array
@@ -285,7 +328,7 @@ def nearest_neighbor(active_core, pebble_r, coords,n_pebbles):
 		init_pairs[(p1,p2)] = np.linalg.norm(coords[p1]-coords[p2])
 	delta = min(init_pairs.values())
 	
-	mesh_id= meshgrid(active_core,coords,n_pebbles,delta)
+	mesh_id= mesh_grid(active_core,coords,n_pebbles,delta)
 	#now, for each grid square with at least one point (each element of mesh_id)
 	#I make rods between each point in 
 	#and all points in the moores neighborhood of that square (ix+/-1, iy+/-1, iz+/-1)
@@ -333,7 +376,7 @@ def nearest_neighbor(active_core, pebble_r, coords,n_pebbles):
 	#aren't actually touching):
 	pairs = list(rods.keys())
 	for pair in pairs:
-		if rods[pair] > 2*pebble_r:
+		if rods[pair] > 2*pebble_radius:
 			del rods[pair]
 	#we also only move a given point relative to exactly one other point, prioritizing
 	#the worst overlap (ie, the shortest rod)
@@ -380,10 +423,10 @@ def select_pair(coords,n_pebbles):
 			p1, p2 = p2, p1
 	return int(p1), int(p2)
 	
-def meshgrid(active_core,coords,n_pebbles,delta):
+def mesh_grid(active_core,coords,n_pebbles,delta):
 	'''
-	determines what gamma lattice grid square each point in
-	coords is in
+	Determines what grid square in the Gamma lattice (from jt-algorithm)
+	each point in the given coordinates is in.
 	Parameters
     ----------
     active_core : didymus CylCore object
@@ -410,12 +453,12 @@ def meshgrid(active_core,coords,n_pebbles,delta):
 	'''
 	
 	
-	Mx = np.ceil(active_core.core_r*2/delta, dtype=int)
-	x_min = active_core.origin[0] - active_core.core_r
-	My = np.ceil(active_core.core_r*2/delta, dtype=int)
-	y_min = active_core.origin[1] - active_core.core_r
-	Mz = np.ceil(active_core.core_h/delta, dtype=int)
-	z_min = active_core.origin[2] - active_core.core_h/2
+	Mx = int(np.ceil(active_core.core_radius*2/delta))
+	x_min = active_core.origin[0] - active_core.core_radius
+	My = int(np.ceil(active_core.core_radius*2/delta))
+	y_min = active_core.origin[1] - active_core.core_radius
+	Mz = int(np.ceil(active_core.core_height/delta))
+	z_min = active_core.origin[2] - active_core.core_height/2
 	fild_sqrs = np.empty(n_pebbles, dtype=object)
 	for i, p in enumerate(coords):
 		ix,iy,iz = None, None, None
@@ -457,15 +500,16 @@ def meshgrid(active_core,coords,n_pebbles,delta):
 		
 	return mesh_id
 
-def move(active_core,pebble_r, coords, pair, rod, d_out):
+def move(active_core,pebble_radius, coords, pair, rod, d_out):
 	'''
-	moves the two points in rod so they are d_out apart
+	Moves the two points in rod an equal and opposite distance such that
+	they are d_out apart
 	
 	Parameters
     ----------
     active_core : didymus CylCore object
 		didymus CylCore object defining the active core region
-	pebble_r : float
+	pebble_radius : float
 		Pebble radius, in units matching those in the core definition
 	coords : numpy array
 		Numpy array of length n_pebbles, where each element is the centroid
@@ -488,9 +532,9 @@ def move(active_core,pebble_r, coords, pair, rod, d_out):
 	ux, uy, uz = (p1[0]-p2[0])/rod,(p1[1]-p2[1])/rod,(p1[2]-p2[2])/rod
 	up1p2 = np.array([ux,uy,uz])
 	
-	z_up = active_core.origin[2] + 0.5*active_core.core_h - pebble_r -active_core.buff
-	z_low = active_core.origin[2] -0.5*active_core.core_h + pebble_r +active_core.buff
-	r_up = active_core.core_r - pebble_r -active_core.buff
+	z_up = active_core.origin[2] + 0.5*active_core.core_height - pebble_radius -active_core.buff
+	z_low = active_core.origin[2] -0.5*active_core.core_height + pebble_radius +active_core.buff
+	r_up = active_core.core_radius - pebble_radius -active_core.buff
 	
 	for i, p in enumerate(p1):
 		p1[i] = p + up1p2[i]*l

@@ -24,7 +24,7 @@ class Core:
 		    Whether axial flow in the core is upward or downward.
 		    True means flow is downward, False means it is upward.
 		buff : float
-			Buffer distance used in determining maximum pebble coordinates,
+			buff distance used in determining maximum pebble coordinates,
 			used to prevent pebble surfaces overlapping core surfaces
 		
 		'''
@@ -37,22 +37,22 @@ class CylCore(Core):
 	Class for a cylindrically shaped core, with its axis parallel
 	to the z-axis.
 	'''
-	def __init__(self, core_r, core_h, *args, **kwargs):
+	def __init__(self, core_radius, core_height, *args, **kwargs):
 		'''
 		Initializes a single instance of a CylCore object.
 		
 		Parameters
         ----------
-        core_r : float
+        core_radius : float
 		    Radius of the core.  Units must match other core
 		    dimensions, including coordinates, and Pebble objects.
-		core_h : float
+		core_height : float
 			Height of the core.  Units must match other core
-			dimensions, per core_r
+			dimensions, per core_radius
 		
 		'''
 		super().__init__(*args, **kwargs)
-		self.core_r = core_r
-		self.core_h = core_h
+		self.core_radius = core_radius
+		self.core_height = core_height
 		
 		
