@@ -529,46 +529,31 @@ def move(active_core,pebble_radius, coords, pair, rod, d_out):
 	'''
 	l = (d_out-rod)/2
 	p1, p2 = coords[pair[0]], coords[pair[1]]
-	ux, uy, uz = (p1[0]-p2[0])/rod,(p1[1]-p2[1])/rod,(p1[2]-p2[2])/rod
-	up1p2 = np.array([ux,uy,uz])
-	
 	z_up = active_core.origin[2] + 0.5*active_core.core_height - pebble_radius -active_core.buff
 	z_low = active_core.origin[2] -0.5*active_core.core_height + pebble_radius +active_core.buff
 	r_up = active_core.core_radius - pebble_radius -active_core.buff
-	
-	for i, p in enumerate(p1):
-		p1[i] = p + up1p2[i]*l
-		if i == 0: #x
-			if abs(p1[i]) > active_core.origin[0]+r_up:
-				theta = np.arctan(ux/uy)
-				p1[i] = active_core.origin[0]+ r_up*np.cos(theta)
-		if i == 1: #y
-			if abs(p1[i]) > active_core.origin[1]+r_up:
-				theta = np.arctan(ux/uy)
-				p1[i] = active_core.origin[1]+ r_up*np.sin(theta)	
-		else: #z
-			if p1[i] > z_up:
-				p1[i] = z_up
-			elif p1[i] < z_low:
-				p1[i] = z_low
-				
-	for i, p in enumerate(p2):
-		p2[i] = p - up1p2[i]*l
-		if i == 0: #x
-			if abs(p2[i]) > r_up:
-				theta = np.arctan(ux/uy)
-				p2[i] = active_core.origin[0]-r_up*np.cos(theta)
-		if i == 1: #y
-			if abs(p2[i]) > r_up:
-				theta = np.arctan(ux/uy)
-				p2[i] = active_core.origin[1]-r_up*np.sin(theta)	
-		else: #z
-			if p2[i] > z_up:
-				p2[i] = z_up
-			elif p2[i] < z_low:
-				p2[i] = z_low
+	ux, uy, uz = (p1[0]-p2[0])/rod,(p1[1]-p2[1])/rod,(p1[2]-p2[2])/rod
+	up1p2 = np.array([ux,uy,uz])
+	for i, p in enumerate([p1,p2]):
+		if i ==0:
+			p += up1p2*l
+		else:
+			p += -up1p2*l
+	for p in [p1,p2]:
+		p_to_center = np.linalg.norm(p[:2]-active_core.origin[:2])
+		if p_to_center > r_up:
+			x = p[0] - active_core.origin[0]
+			y = p[1] - active_core.origin[1]
+			theta = np.arctan(x/y)
+			p[0] = active_core.origin[0] + r_up*np.cos(theta)
+			p[1] = active_core.origin[0] + r_up*np.sin(theta)
 		
-	
+		if p[2] > z_up:
+			p[2] = z_up
+		
+		if p[2] < z_low:
+			p[2] = z_low
+		
 	
 	return p1,p2
 	
