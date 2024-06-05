@@ -1,10 +1,13 @@
 import pytest
+import didymus as di
 
+test_core = di.core.CylCore(10.0,50.0,np.array([3.0, 6.0, 9.0]))
 
 def test_pebble_packing():
 	'''
+	Tests the pebble_packing function in pack.py
 	'''
-	pass
+	
 	return
 	
 def test_pf_to_n():
