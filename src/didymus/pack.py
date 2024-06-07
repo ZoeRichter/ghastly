@@ -6,6 +6,12 @@ from didymus import core
 from didymus import pebble
 rng = np.random.default_rng()
 
+#rods can be calculated in a more straightforward way via the euclidean
+#distance (see scipy spatial) which is defined as the distance between two
+#two points
+
+
+
 def pebble_packing(active_core, pebble_radius, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**(-3)):
     '''
     Function to pack pebbles into a cylindrical core (see the CylCore
@@ -533,14 +539,17 @@ def move(active_core,pebble_radius, coords, pair, rod, d_out):
         Integers corresponding to the index of a point in coords,
         where p1 < p2.
     '''
-    l = (d_out-rod)/2
+    l = abs(d_out-rod)/2
     p1, p2 = coords[pair[0]], coords[pair[1]]
+    #calculate limits once per simulation
     z_up = (active_core.origin[2] + 0.5*active_core.core_height
         - pebble_radius -active_core.buff)
     z_low = (active_core.origin[2] -0.5*active_core.core_height
         + pebble_radius +active_core.buff)
     r_up = active_core.core_radius - pebble_radius -active_core.buff
+    #make unit vector function, run tests scratch that look at scipy spatial
     ux, uy, uz = (p1[0]-p2[0])/rod,(p1[1]-p2[1])/rod,(p1[2]-p2[2])/rod
+    #clearer name for below
     up1p2 = np.array([ux,uy,uz])
     for i, p in enumerate([p1,p2]):
         if i ==0:
@@ -550,11 +559,11 @@ def move(active_core,pebble_radius, coords, pair, rod, d_out):
     for p in [p1,p2]:
         p_to_center = np.linalg.norm(p[:2]-active_core.origin[:2])
         if p_to_center > r_up:
-            x = p[0] - active_core.origin[0]
-            y = p[1] - active_core.origin[1]
-            theta = np.arctan(y/x)
-            p[0] = active_core.origin[0] + r_up*np.cos(theta)
-            p[1] = active_core.origin[1] + r_up*np.sin(theta)
+            l_out = abs(p_to_center-r_up)
+            ux_p_to_center = (active_core.origin[0]-p[0])/p_to_center
+            uy_p_to_center = (active_core.origin[1]-p[1])/p_to_center
+            p[0] += ux_p_to_center*l_out
+            p[1] += uy_p_to_center*l_out
 
         if p[2] > z_up:
             p[2] = z_up
