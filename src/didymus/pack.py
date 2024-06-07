@@ -465,45 +465,23 @@ def mesh_grid(active_core,coords,n_pebbles,delta):
     '''
 
 
-    Mx = int(np.ceil(active_core.core_radius*2/delta))
+    Mx = int(np.ceil(active_core.core_radius*2/delta) - 1)
     x_min = active_core.origin[0] - active_core.core_radius
-    My = int(np.ceil(active_core.core_radius*2/delta))
+    My = int(np.ceil(active_core.core_radius*2/delta) - 1)
     y_min = active_core.origin[1] - active_core.core_radius
-    Mz = int(np.ceil(active_core.core_height/delta))
+    Mz = int(np.ceil(active_core.core_height/delta) -1)
     z_min = active_core.origin[2] - active_core.core_height/2
     fild_sqrs = np.empty(n_pebbles, dtype=object)
     for i, p in enumerate(coords):
-        ix,iy,iz = None, None, None
-        for j in range(Mx):
-            if p[0] > (x_min + j*delta) and p[0] <= (x_min + (j+1)*delta):
-                ix = j
-                break
-            else:
-                if j == Mx-1:
-                    if not ix:
-                        ix = j
-                    else:
-                        pass
-        for k in range(My):
-            if p[1] > (y_min + k*delta) and p[1] <= (y_min + (k+1)*delta):
-                iy = k
-                break
-            else:
-                if k == My-1:
-                    if not iy:
-                        iy = k
-                    else:
-                        pass
-        for l in range(Mz):
-            if p[2] > (z_min + l*delta) and p[2] <= (z_min + (l+1)*delta):
-                iz = l
-                break
-            else:
-                if l == Mz-1:
-                    if not iz:
-                        iz = l
-                    else:
-                        pass
+        ix= int(np.floor((p[0]-x_min)/delta))
+        if ix == Mx+1:
+            ix=Mx
+        iy= int(np.floor((p[1]-y_min)/delta))
+        if iy == My+1:
+            iy=My
+        iz= int(np.floor((p[2]-z_min)/delta))
+        if iz==Mz+1:
+            iz=Mz
         fild_sqrs[i] = (ix,iy,iz)
     mesh_id = defaultdict(list)
     for i, v in enumerate(fild_sqrs):
