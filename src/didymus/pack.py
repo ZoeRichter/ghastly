@@ -116,7 +116,7 @@ def pebble_packing(active_core, pebble_radius, n_pebbles=0,n_mat_ids=0,pf=0,pf_m
 	#if gave n_pebs:len(pebbles) should match n_pebs
 	#if gave pf: vol of pebbles/core volume should approximately be equal to pf
 	
-	return pebbles
+	return pebbles, final_coords
 	
 		
 def pf_to_n(active_core, pebble_radius, pf):
@@ -544,9 +544,9 @@ def move(active_core,pebble_radius, coords, pair, rod, d_out):
 		if p_to_center > r_up:
 			x = p[0] - active_core.origin[0]
 			y = p[1] - active_core.origin[1]
-			theta = np.arctan(x/y)
+			theta = np.arctan(y/x)
 			p[0] = active_core.origin[0] + r_up*np.cos(theta)
-			p[1] = active_core.origin[0] + r_up*np.sin(theta)
+			p[1] = active_core.origin[1] + r_up*np.sin(theta)
 		
 		if p[2] > z_up:
 			p[2] = z_up
