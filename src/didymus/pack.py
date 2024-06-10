@@ -78,14 +78,27 @@ def pebble_packing(active_core, pebble_radius, n_pebbles=0,n_mat_ids=0,pf=0,pf_m
         print("Equivalent number of pebbles is " + str(n_pebbles))
         using_pf = True
 
+    z_upper = (active_core.origin[2] + 0.5*active_core.core_height
+        - pebble_radius -active_core.buff)
+    z_lower = (active_core.origin[2] -0.5*active_core.core_height
+        + pebble_radius +active_core.buff)
+    r_upper = active_core.core_radius - pebble_radius -active_core.buff
+
+    bounds = np.array([r_upper, z_lower, z_upper])
+
     #find the starting coords guess
-    init_coords = find_start_coords(active_core, pebble_radius, n_pebbles)
+    init_coords = find_start_coords(active_core, bounds, n_pebbles)
 
     #now we actually get into the Jodrey-Tory algorithm, with the added
     #help of Rabin-Lipton method of probalisticaly solving the
     #nearest neighbor problem
 
-    final_coords = jt_algorithm(active_core, pebble_radius,init_coords,n_pebbles,k)
+    final_coords = jt_algorithm(active_core,
+                                pebble_radius,
+                                bounds,
+                                init_coords,
+                                n_pebbles,
+                                k)
 
     #generate the list of didymus pebbles.  the specific method changes with
     #whether the user originally gave pf or N
@@ -181,7 +194,7 @@ def n_to_pf(active_core, pebble_radius, n_pebbles):
         return pf
 
 
-def find_start_coords(active_core, pebble_radius, n_pebbles):
+def find_start_coords(active_core, bounds, n_pebbles):
     '''
     Generates an array of starting center coordinates for pebble
     packing
@@ -190,9 +203,9 @@ def find_start_coords(active_core, pebble_radius, n_pebbles):
     ----------
     active_core : didymus CylCore object
         didymus CylCore object defining pebble-filled region of the core.
-    pebble_radius : float
-        Radius of a single pebble, with units matching those
-        used to create center coordinates.
+    bounds : numpy array
+        Upper and lower bounds on possible pebble center coordinates within the
+        active core, in the form of [maximum radius, minimum Z, maximum Z]
     n_pebbles : int
         Number of pebbles in active core region
 
@@ -203,26 +216,20 @@ def find_start_coords(active_core, pebble_radius, n_pebbles):
         of a pebble
     '''
 
-    #determine dimension upper and lower bounds
-    z_up = (active_core.origin[2] + 0.5*active_core.core_height - pebble_radius 
-        -active_core.buff)
-    z_low = (active_core.origin[2] -0.5*active_core.core_height + pebble_radius 
-        + active_core.buff)
-    r_up = active_core.core_radius - pebble_radius -active_core.buff
 
     coords = np.empty(n_pebbles,dtype=np.ndarray)
     for i in range(n_pebbles):
         f = rng.random()
         theta = rng.uniform(0,2*np.pi)
-        x = active_core.origin[0] + f*r_up*np.cos(theta)
-        y = active_core.origin[1] + f*r_up*np.sin(theta)
-        z = rng.uniform(z_low,z_up)
+        x = active_core.origin[0] + f*bounds[0]*np.cos(theta)
+        y = active_core.origin[1] + f*bounds[0]*np.sin(theta)
+        z = rng.uniform(bounds[1],bounds[2])
         coords[i] = np.array([x,y,z])
 
 
     return coords
 
-def jt_algorithm(active_core, pebble_radius,coords,n_pebbles,k):
+def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
     '''
     Performs the Jodrey-Tory algorithm to remove overlap from given
     pebble coordinates and return non-overlapping coordinates
@@ -235,6 +242,9 @@ def jt_algorithm(active_core, pebble_radius,coords,n_pebbles,k):
     pebble_radius : float
         Radius of a single pebble, with units matching those
         used to create center coordinates.
+    bounds : numpy array
+        Upper and lower bounds on possible pebble center coordinates within the
+        active core, in the form of [maximum radius, minimum Z, maximum Z]
     coords : numpy array
         Numpy array of length n_pebbles, where each element is the centroid
         of a pebble.  This is pre-Jodrey-Tory.
@@ -276,7 +286,7 @@ def jt_algorithm(active_core, pebble_radius,coords,n_pebbles,k):
                 p1 = rod[0]
                 p2 = rod[1]
                 coords[p1],coords[p2] = move(active_core,
-                                        pebble_radius,
+                                        bounds,
                                         coords,
                                         rod,
                                         rod_queue[rod],
@@ -341,7 +351,7 @@ def nearest_neighbor(active_core, pebble_radius, coords,n_pebbles):
     mesh_id= mesh_grid(active_core,coords,n_pebbles,delta)
     #now, for each grid square with at least one point (each element of mesh_id)
     #I make rods between each point in
-    #and all points in the moores neighborhood of that square 
+    #and all points in the moores neighborhood of that square
     #(ix+/-1, iy+/-1, iz+/-1)
     rods = {}
     for i, msqr in enumerate(mesh_id.keys()):
@@ -382,15 +392,15 @@ def nearest_neighbor(active_core, pebble_radius, coords,n_pebbles):
                         rods[(p1,p2)] = np.linalg.norm(coords[p1]-coords[p2])
                     else:
                         rods[(p2,p1)] = np.linalg.norm(coords[p1]-coords[p2])
-    #now, we should have the unfiltered rod list.  but we don't really 
+    #now, we should have the unfiltered rod list.  but we don't really
     #need all of these
-    # we can immediately drop any rod longer than the diameter of a pebble 
+    # we can immediately drop any rod longer than the diameter of a pebble
     #(these pebs aren't actually touching):
     pairs = list(rods.keys())
     for pair in pairs:
         if rods[pair] > 2*pebble_radius:
             del rods[pair]
-    #we also only move a given point relative to exactly one other point, 
+    #we also only move a given point relative to exactly one other point,
     #prioritizing the worst overlap (ie, the shortest rod)
     for p in range(n_pebbles):
         temp={}
@@ -490,7 +500,7 @@ def mesh_grid(active_core,coords,n_pebbles,delta):
 
     return mesh_id
 
-def move(active_core,pebble_radius, coords, pair, rod, d_out):
+def move(active_core,bounds, coords, pair, rod, d_out):
     '''
     Moves the two points in rod an equal and opposite distance such that
     they are d_out apart
@@ -499,7 +509,7 @@ def move(active_core,pebble_radius, coords, pair, rod, d_out):
     ----------
     active_core : didymus CylCore object
         didymus CylCore object defining the active core region
-    pebble_radius : float
+    bounds : float
         Pebble radius, in units matching those in the core definition
     coords : numpy array
         Numpy array of length n_pebbles, where each element is the centroid
@@ -519,12 +529,6 @@ def move(active_core,pebble_radius, coords, pair, rod, d_out):
     '''
     l = abs(d_out-rod)/2
     p1, p2 = coords[pair[0]], coords[pair[1]]
-    #calculate limits once per simulation
-    z_up = (active_core.origin[2] + 0.5*active_core.core_height
-        - pebble_radius -active_core.buff)
-    z_low = (active_core.origin[2] -0.5*active_core.core_height
-        + pebble_radius +active_core.buff)
-    r_up = active_core.core_radius - pebble_radius -active_core.buff
     #make unit vector function, run tests scratch that look at scipy spatial
     ux, uy, uz = (p1[0]-p2[0])/rod,(p1[1]-p2[1])/rod,(p1[2]-p2[2])/rod
     #clearer name for below
@@ -536,18 +540,18 @@ def move(active_core,pebble_radius, coords, pair, rod, d_out):
             p += -up1p2*l
     for p in [p1,p2]:
         p_to_center = np.linalg.norm(p[:2]-active_core.origin[:2])
-        if p_to_center > r_up:
-            l_out = abs(p_to_center-r_up)
+        if p_to_center > bounds[0]:
+            l_out = abs(p_to_center-bounds[0])
             ux_p_to_center = (active_core.origin[0]-p[0])/p_to_center
             uy_p_to_center = (active_core.origin[1]-p[1])/p_to_center
             p[0] += ux_p_to_center*l_out
             p[1] += uy_p_to_center*l_out
 
-        if p[2] > z_up:
-            p[2] = z_up
+        if p[2] > bounds[2]:
+            p[2] = bounds[2]
 
-        if p[2] < z_low:
-            p[2] = z_low
+        if p[2] < bounds[1]:
+            p[2] = bounds[1]
 
 
     return p1,p2
