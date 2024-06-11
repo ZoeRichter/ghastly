@@ -271,6 +271,14 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
         else:
             for rod in rod_queue:
                 d_in = min(rod_queue.values())
+                if d_out < 2*pebble_radius:
+                    print('''Outer diameter converged too quickly.
+                    Try again with a smaller contraction rate.''')
+                    print("Maximum possible diameter with current packing:",
+                         d_in)
+                    overlap = False
+                    break
+                
                 p1 = rod[0]
                 p2 = rod[1]
                 coords[p1],coords[p2] = move(active_core,
@@ -278,13 +286,6 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
                                         coords,
                                         rod,
                                         d_out)
-                if d_out < d_in:
-                    print('''Outer and inner diameter converged too quickly.
-                    Try again with a smaller contraction rate.''')
-                    print("Maximum possible diameter with current packing:",
-                         d_in)
-                    overlap = False
-                    break
                 del_pf = (n_to_pf(active_core,d_out/2,n_pebbles)-
                         n_to_pf(active_core,d_in/2,n_pebbles))
                 j = int(np.floor(-np.log10(abs(del_pf))))
@@ -520,7 +521,6 @@ def move(active_core,bounds, coords, pair, d_out):
     p1, p2 = coords[pair[0]], coords[pair[1]]
     
     while not_apart:
-        i+=1
         normp1p2 = np.linalg.norm(p1-p2)
         up1p2 = (p1-p2)/normp1p2
         l = (d_out-normp1p2)/2
@@ -558,6 +558,7 @@ def move(active_core,bounds, coords, pair, d_out):
         if i>10:
             print("still not apart")
             not_apart = False
+        i+=1
     
 
 
