@@ -1,5 +1,6 @@
 #imports
 import numpy as np
+import math
 from collections import defaultdict
 from didymus import core
 from didymus import pebble
@@ -121,13 +122,6 @@ def pebble_packing(active_core, pebble_radius, n_pebbles=0,n_mat_ids=0,pf=0,pf_m
                 pebbles.append(pebble.Pebble(final_coords[counter], pebble_radius, key ,counter))
                 counter+=1
 
-
-    #tests:
-    #because assigning coords to pebbles goes through final_coords in order, the origin
-    #of a pebbles[i] should match final_coords[i]
-    # pebble.pebble_radius should match pebble_radius
-    #if gave n_pebs:len(pebbles) should match n_pebs
-    #if gave pf: vol of pebbles/core volume should approximately be equal to pf
 
     return pebbles, final_coords
 
@@ -257,16 +251,16 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
     '''
 
     #step 1: find initial d_out, which is d such that pf = 1
+    #core_vol should be a class attribute, with how often you use it
     if type(active_core) == core.CylCore:
         core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
     d_out_0 = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebbles))
     d_out = d_out_0
+    print(d_out_0)
+    print()
 
     #step 2: probabilistic nearest neighbor search
     #to find worst overlap (shortest rod)
-
-    #we can get the starting rod queue (and nearest neighbor)
-    # with the nearest_neighbor function
     overlap = True
     i = 0
     while overlap:
@@ -283,7 +277,6 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
                                         bounds,
                                         coords,
                                         rod,
-                                        rod_queue[rod],
                                         d_out)
                 if d_out < d_in:
                     print('''Outer and inner diameter converged too quickly.
@@ -494,7 +487,7 @@ def mesh_grid(active_core,coords,n_pebbles,delta):
 
     return mesh_id
 
-def move(active_core,bounds, coords, pair, rod, d_out):
+def move(active_core,bounds, coords, pair, d_out):
     '''
     Moves the two points in rod an equal and opposite distance such that
     they are d_out apart
@@ -521,31 +514,51 @@ def move(active_core,bounds, coords, pair, rod, d_out):
         Integers corresponding to the index of a point in coords,
         where p1 < p2.
     '''
-    l = abs(d_out-rod)/2
+    
+    not_apart = True
+    i = 0
     p1, p2 = coords[pair[0]], coords[pair[1]]
-    #make unit vector function, run tests scratch that look at scipy spatial
-    ux, uy, uz = (p1[0]-p2[0])/rod,(p1[1]-p2[1])/rod,(p1[2]-p2[2])/rod
-    #clearer name for below
-    up1p2 = np.array([ux,uy,uz])
-    for i, p in enumerate([p1,p2]):
-        if i ==0:
-            p += up1p2*l
-        else:
-            p += -up1p2*l
-    for p in [p1,p2]:
-        p_to_center = np.linalg.norm(p[:2]-active_core.origin[:2])
-        if p_to_center > bounds[0]:
-            l_out = abs(p_to_center-bounds[0])
-            ux_p_to_center = (active_core.origin[0]-p[0])/p_to_center
-            uy_p_to_center = (active_core.origin[1]-p[1])/p_to_center
-            p[0] += ux_p_to_center*l_out
-            p[1] += uy_p_to_center*l_out
+    
+    while not_apart:
+        i+=1
+        normp1p2 = np.linalg.norm(p1-p2)
+        up1p2 = (p1-p2)/normp1p2
+        l = (d_out-normp1p2)/2
+        if l<0:
+            print(i,d_out,normp1p2)
+        for i, p in enumerate([p1,p2]):
+            if i ==0:
+                p += up1p2*l
+            else:
+                p += -up1p2*l
+        
+            
+        for p in [p1,p2]:
+            p_to_center = np.linalg.norm(p[:2]-active_core.origin[:2])
+            if p_to_center > bounds[0]:
+                l_out = abs(p_to_center-bounds[0])
+                ux_p_to_center = (active_core.origin[0]-p[0])/p_to_center
+                uy_p_to_center = (active_core.origin[1]-p[1])/p_to_center
+                p[0] += ux_p_to_center*l_out
+                p[1] += uy_p_to_center*l_out
 
-        if p[2] > bounds[2]:
-            p[2] = bounds[2]
-
-        if p[2] < bounds[1]:
-            p[2] = bounds[1]
+            if p[2] > bounds[2]:
+                p[2] = bounds[2]
+            
+            if p[2] < bounds[1]:
+                p[2] = bounds[1]
+                
+        normp1p2 = np.linalg.norm(p1-p2)
+        if math.isclose(normp1p2,d_out) or normp1p2>d_out:
+            not_apart = False
+            
+        if i%5 == 0:
+            print(i)
+            
+        if i>10:
+            print("still not apart")
+            not_apart = False
+    
 
 
     return p1,p2
