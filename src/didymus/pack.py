@@ -1,14 +1,9 @@
 #imports
 import numpy as np
 from collections import defaultdict
-import didymus as di
 from didymus import core
 from didymus import pebble
 rng = np.random.default_rng()
-
-#rods can be calculated in a more straightforward way via the euclidean
-#distance (see scipy spatial) which is defined as the distance between two
-#two points
 
 
 
@@ -61,7 +56,7 @@ def pebble_packing(active_core, pebble_radius, n_pebbles=0,n_mat_ids=0,pf=0,pf_m
 
     #add check to enforce a hard upper limit that pf <= 0.60
     assert pf <= 0.6, "pf must be less than or equal to 0.6"
-    assert type(active_core) == di.core.CylCore, "Only CylCore is currently supported"
+    assert type(active_core) == core.CylCore, "Only CylCore is currently supported"
 
     if n_pebbles != 0 and pf == 0:
         assert type(n_mat_ids) == np.ndarray,"n_mat_ids must be a numpy array with length equal to n_pebbles"
@@ -86,7 +81,7 @@ def pebble_packing(active_core, pebble_radius, n_pebbles=0,n_mat_ids=0,pf=0,pf_m
 
     bounds = np.array([r_upper, z_lower, z_upper])
 
-    #find the starting coords guess
+    #find the starting coords
     init_coords = find_start_coords(active_core, bounds, n_pebbles)
 
     #now we actually get into the Jodrey-Tory algorithm, with the added
@@ -107,7 +102,7 @@ def pebble_packing(active_core, pebble_radius, n_pebbles=0,n_mat_ids=0,pf=0,pf_m
          coord in enumerate(final_coords)]
     #if pf was given, we first need to determine the number of whole pebbles
     #of each provided material id (trying to stay close to what the user provided,
-    #except you can only have whole pebbles
+    #except you can only have whole pebbles)
     else:
         pebble_split = {}
         normalize = sum(f for f in pf_mat_ids.values())
@@ -127,7 +122,6 @@ def pebble_packing(active_core, pebble_radius, n_pebbles=0,n_mat_ids=0,pf=0,pf_m
                 counter+=1
 
 
-        #maybe open discussion for how you're implementing this specific part^ next meeting
     #tests:
     #because assigning coords to pebbles goes through final_coords in order, the origin
     #of a pebbles[i] should match final_coords[i]
@@ -159,7 +153,7 @@ def pf_to_n(active_core, pebble_radius, pf):
         Number of pebbles in active core region
 
     '''
-    if type(active_core) == di.core.CylCore:
+    if type(active_core) == core.CylCore:
         core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
         p_vol_tot = pf*core_vol
         p_vol = (4/3)*np.pi*pebble_radius**3
@@ -186,7 +180,7 @@ def n_to_pf(active_core, pebble_radius, n_pebbles):
     pf : float
         Packing fraction, given in decimal format
     '''
-    if type(active_core) == di.core.CylCore:
+    if type(active_core) == core.CylCore:
         core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
         p_vol = (4/3)*np.pi*pebble_radius**3
         p_vol_tot = p_vol*n_pebbles
@@ -263,7 +257,7 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
     '''
 
     #step 1: find initial d_out, which is d such that pf = 1
-    if type(active_core) == di.core.CylCore:
+    if type(active_core) == core.CylCore:
         core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
     d_out_0 = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebbles))
     d_out = d_out_0
