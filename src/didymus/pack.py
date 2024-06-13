@@ -257,6 +257,8 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
     d_out_0 = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebbles))
     d_out = d_out_0
     d_in_last = 0.0
+    sum_d_in=0
+    sum_i = 0
 
     #step 2: probabilistic nearest neighbor search
     #to find worst overlap (shortest rod)
@@ -265,22 +267,32 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
     while overlap:
         rod_queue = nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
         d_in = min(rod_queue.values())
-        
+        sum_d_in+=d_in
+        sum_i+=1
         if d_in<=d_in_last:
             pass
-        else:
+        elif d_in>d_in_last:
             del_pf = abs(n_to_pf(active_core,d_out/2,n_pebbles)-
                     n_to_pf(active_core,d_in/2,n_pebbles))
             j = int(np.floor(-np.log10(del_pf)))
             d_out = d_out - (0.5**j)*(k/n_pebbles)*d_out_0
-        print(d_out," ",d_in)
+            
         if d_out < 2*pebble_radius:
-            print('''Outer diameter converged too quickly.
-            Try again with a smaller contraction rate.''')
-            print("Maximum possible diameter with current packing:",
-                    d_in)
-            overlap = False
-            break
+            #print('''Outer diameter converged too quickly.
+            #Try again with a smaller contraction rate.''')
+            #print("Maximum possible diameter with current packing:",
+                    #d_in)
+            #overlap = False
+            #break
+            
+            #this is almost certainly an insane thing to do
+            d_out = d_out_0
+            #make it try again from the top
+            print("average d_in this attempt is ", sum_d_in/sum_i)
+            print("i is ", i)
+            sum_d_in=0
+            sum_i=0
+            #find avg d_in this attempt and then reset
         if not rod_queue:
             overlap = False
             break
@@ -293,8 +305,13 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
                                         coords,
                                         rod,
                                         d_out)
+                if i%10000 ==0:
+                    print(d_out," ",d_in)
+                    #print(len(rod_queue))
+                    #if i > 1000000:
+                        #print(rod_queue)
                 i += 1
-        if i > 10**8:
+        if i > 10**7:
             overlap = False
             print("Did not reach packing fraction")
             print("Maximum possible pebble diameter is currently ", d_in)
@@ -521,7 +538,7 @@ def move(active_core,bounds, coords, pair, d_out):
     '''
     
     not_apart = True
-    i = 0
+    j = 0
     p1, p2 = coords[pair[0]], coords[pair[1]]
     
     while not_apart:
@@ -529,7 +546,7 @@ def move(active_core,bounds, coords, pair, d_out):
         up1p2 = (p1-p2)/normp1p2
         l = (d_out-normp1p2)/2
         if l<0:
-            print(i,d_out,normp1p2)
+            print(j,d_out,normp1p2)
         for i, p in enumerate([p1,p2]):
             if i ==0:
                 p += up1p2*l
@@ -556,14 +573,10 @@ def move(active_core,bounds, coords, pair, d_out):
         if math.isclose(normp1p2,d_out) or normp1p2>d_out:
             not_apart = False
             
-        if i%5 == 0:
-            print(i)
-            
-        if i>10:
+        if j>100:
             print("still not apart")
             not_apart = False
-        i+=1
-    
+        j+=1
 
 
     return p1,p2
