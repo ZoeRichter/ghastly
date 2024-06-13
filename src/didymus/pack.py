@@ -264,11 +264,10 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
     #to find worst overlap (shortest rod)
     overlap = True
     i = 0
-    rod_queue = nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
-    d_in = min(rod_queue.values())
+    rod = nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
+    d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
     
     while overlap:
-        rod = list(rod_queue.keys())[0]
         coords[rod[0]],coords[rod[1]] = fix_overlap(active_core,
                                         bounds,
                                         coords,
@@ -277,15 +276,15 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
         i += 1
         if i%10000==0:
             print(d_out,d_in)
-            
-        rod_queue = nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
+        
         sum_d_in+=d_in
         sum_i+=1
-        if not rod_queue:
+        rod =  nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
+        if not rod:
             overlap = False
             break
         else:
-            d_in = min(rod_queue.values())
+            d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
             if d_in<=d_in_last:
                 pass
             elif d_in>d_in_last:
@@ -404,27 +403,29 @@ def nearest_neighbor(active_core, pebble_radius, coords,n_pebbles):
     #need all of these
     # we can immediately drop any rod longer than the diameter of a pebble
     #(these pebs aren't actually touching):
-    #pairs = list(rods.keys())
-    #for pair in pairs:
-        #if rods[pair] > 2*pebble_radius:
-            #del rods[pair]
+    pairs = list(rods.keys())
+    for pair in pairs:
+        if rods[pair] > 2*pebble_radius:
+            del rods[pair]
     #we also only move a given point relative to exactly one other point,
     #prioritizing the worst overlap (ie, the shortest rod)
-    #for p in range(n_pebbles):
-        #temp={}
-        #pairs = list(rods.keys())
-        #for pair in pairs:
-            #if pair[0] ==  p or pair[1] == p:
-                #temp[pair] = rods[pair]
-        #if not temp:
-            #pass
-        #else:
-            #temp_keys = list(temp.keys())
-            #for tkey in temp_keys:
-                #if temp[tkey] != min(temp.values()):
-                    #del rods[tkey]
-                    
-    worst_overlap = min(rods, key = rods.get)
+    for p in range(n_pebbles):
+        temp={}
+        pairs = list(rods.keys())
+        for pair in pairs:
+            if pair[0] ==  p or pair[1] == p:
+                temp[pair] = rods[pair]
+        if not temp:
+            pass
+        else:
+            temp_keys = list(temp.keys())
+            for tkey in temp_keys:
+                if temp[tkey] != min(temp.values()):
+                    del rods[tkey]
+    if not rods:
+        worst_overlap = None
+    else:
+        worst_overlap = min(rods, key = rods.get)
     return worst_overlap
 
 def select_pair(coords,n_pebbles):
