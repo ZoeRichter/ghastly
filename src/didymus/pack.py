@@ -264,54 +264,53 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
     #to find worst overlap (shortest rod)
     overlap = True
     i = 0
+    rod_queue = nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
+    d_in = min(rod_queue.values())
+    
     while overlap:
-        rod_queue = nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
-        d_in = min(rod_queue.values())
-        sum_d_in+=d_in
-        sum_i+=1
-        if d_in<=d_in_last:
-            pass
-        elif d_in>d_in_last:
-            del_pf = abs(n_to_pf(active_core,d_out/2,n_pebbles)-
-                    n_to_pf(active_core,d_in/2,n_pebbles))
-            j = int(np.floor(-np.log10(del_pf)))
-            d_out = d_out - (0.5**j)*(k/n_pebbles)*d_out_0
-            
-        if d_out < 2*pebble_radius:
-            #print('''Outer diameter converged too quickly.
-            #Try again with a smaller contraction rate.''')
-            #print("Maximum possible diameter with current packing:",
-                    #d_in)
-            #overlap = False
-            #break
-            
-            #this is almost certainly an insane thing to do
-            d_out = d_out_0
-            #make it try again from the top
-            print("average d_in this attempt is ", sum_d_in/sum_i)
-            print("i is ", i)
-            sum_d_in=0
-            sum_i=0
-            #find avg d_in this attempt and then reset
-        if not rod_queue:
-            overlap = False
-            break
-        else:
-            for rod in rod_queue:
-                p1 = rod[0]
-                p2 = rod[1]
-                coords[p1],coords[p2] = move(active_core,
+        rod = list(rod_queue.keys())[0]
+        coords[rod[0]],coords[rod[1]] = fix_overlap(active_core,
                                         bounds,
                                         coords,
                                         rod,
                                         d_out)
-                if i%10000 ==0:
-                    print(d_out," ",d_in)
-                    #print(len(rod_queue))
-                    #if i > 1000000:
-                        #print(rod_queue)
-                i += 1
-        if i > 10**7:
+        i += 1
+        if i%10000==0:
+            print(d_out,d_in)
+            
+        rod_queue = nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
+        sum_d_in+=d_in
+        sum_i+=1
+        if not rod_queue:
+            overlap = False
+            break
+        else:
+            d_in = min(rod_queue.values())
+            if d_in<=d_in_last:
+                pass
+            elif d_in>d_in_last:
+                del_pf = abs(n_to_pf(active_core,d_out/2,n_pebbles)-
+                        n_to_pf(active_core,d_in/2,n_pebbles))
+                j = int(np.floor(-np.log10(del_pf)))
+                d_out = d_out - (0.5**j)*(k/n_pebbles)*d_out_0
+            
+            if d_out < 2*pebble_radius:
+                #print('''Outer diameter converged too quickly.
+                #Try again with a smaller contraction rate.''')
+                #print("Maximum possible diameter with current packing:",
+                        #d_in)
+                #overlap = False
+                #break
+            
+                #this is almost certainly an insane thing to do
+                d_out = d_out_0
+                #make it try again from the top
+                print("average d_in this attempt is ", sum_d_in/sum_i)
+                print("i is ", i)
+                sum_d_in=0
+                sum_i=0
+                #find avg d_in this attempt and then reset
+        if i > 10**9:
             overlap = False
             print("Did not reach packing fraction")
             print("Maximum possible pebble diameter is currently ", d_in)
@@ -405,26 +404,28 @@ def nearest_neighbor(active_core, pebble_radius, coords,n_pebbles):
     #need all of these
     # we can immediately drop any rod longer than the diameter of a pebble
     #(these pebs aren't actually touching):
-    pairs = list(rods.keys())
-    for pair in pairs:
-        if rods[pair] > 2*pebble_radius:
-            del rods[pair]
+    #pairs = list(rods.keys())
+    #for pair in pairs:
+        #if rods[pair] > 2*pebble_radius:
+            #del rods[pair]
     #we also only move a given point relative to exactly one other point,
     #prioritizing the worst overlap (ie, the shortest rod)
-    for p in range(n_pebbles):
-        temp={}
-        pairs = list(rods.keys())
-        for pair in pairs:
-            if pair[0] ==  p or pair[1] == p:
-                temp[pair] = rods[pair]
-        if not temp:
-            pass
-        else:
-            temp_keys = list(temp.keys())
-            for tkey in temp_keys:
-                if temp[tkey] != min(temp.values()):
-                    del rods[tkey]
-    return rods
+    #for p in range(n_pebbles):
+        #temp={}
+        #pairs = list(rods.keys())
+        #for pair in pairs:
+            #if pair[0] ==  p or pair[1] == p:
+                #temp[pair] = rods[pair]
+        #if not temp:
+            #pass
+        #else:
+            #temp_keys = list(temp.keys())
+            #for tkey in temp_keys:
+                #if temp[tkey] != min(temp.values()):
+                    #del rods[tkey]
+                    
+    worst_overlap = min(rods, key = rods.get)
+    return worst_overlap
 
 def select_pair(coords,n_pebbles):
     '''
@@ -509,7 +510,7 @@ def mesh_grid(active_core,coords,n_pebbles,delta):
 
     return mesh_id
 
-def move(active_core,bounds, coords, pair, d_out):
+def fix_overlap(active_core,bounds, coords, pair, d_out):
     '''
     Moves the two points in rod an equal and opposite distance such that
     they are d_out apart
