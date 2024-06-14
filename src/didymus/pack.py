@@ -282,10 +282,11 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k):
         i += 1
         sum_d_in+=d_in
         sum_i+=1
-        if i%50000==0:
+        if i%20000==0:
             print(d_out,d_in,sum_d_in/sum_i)
             sum_d_in = 0
             sum_i = 0
+            coords = perturb(active_core,coords,pebble_radius,bounds)
         rod =  nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
         if not rod:
             overlap = False
@@ -295,11 +296,11 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k):
             if d_in<=d_in_last:
                 pass
             elif d_in>d_in_last:
-                if d_out < 2*pebble_radius:
+                if d_out <= 2*pebble_radius:
                     #num = pf*(active_core.core_radius**2)*active_core.core_height
                     #denom = n_pebbles*(4/3)
                     #d_out = 2*np.cbrt(num/denom)
-                    d_out = d_out_0
+                    d_out = 2*pebble_radius
                 else:
                     del_pf = abs(n_to_pf(active_core,d_out/2,n_pebbles)-
                         n_to_pf(active_core,d_in/2,n_pebbles))
@@ -580,3 +581,35 @@ def fix_overlap(active_core,bounds, coords, pair, d_out):
 
     return p1,p2
 
+def perturb(active_core,coords,pebble_radius,bounds):
+    '''
+    randomly perturbs pebble centers
+    '''
+    
+    for p in coords:
+        ux = rng.random()
+        uy = rng.random()
+        uz = rng.random()
+        unorm = np.linalg.norm([ux,uy,uz])
+        uvector = np.array([ux/unorm,uy/unorm,uz/unorm])
+        l = (pebble_radius*rng.random()**2)/100
+        for i in range(3):
+            p[i] += uvector[i]*l
+    
+    for p in coords:
+        p_to_center = np.linalg.norm(p[:2]-active_core.origin[:2])
+        if p_to_center > bounds[0]:
+            l_out = abs(p_to_center-bounds[0])
+            ux_p_to_center = (active_core.origin[0]-p[0])/p_to_center
+            uy_p_to_center = (active_core.origin[1]-p[1])/p_to_center
+            p[0] += ux_p_to_center*l_out
+            p[1] += uy_p_to_center*l_out
+
+        if p[2] > bounds[2]:
+            p[2] = bounds[2]
+            
+        if p[2] < bounds[1]:
+            p[2] = bounds[1]
+            
+    return coords
+        
