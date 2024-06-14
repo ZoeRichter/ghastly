@@ -94,6 +94,7 @@ def pebble_packing(active_core, pebble_radius, n_pebbles=0,n_mat_ids=0,pf=0,pf_m
                                 bounds,
                                 init_coords,
                                 n_pebbles,
+                                pf,
                                 k)
 
     #generate the list of didymus pebbles.  the specific method changes with
@@ -217,7 +218,7 @@ def find_start_coords(active_core, bounds, n_pebbles):
 
     return coords
 
-def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
+def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k):
     '''
     Performs the Jodrey-Tory algorithm to remove overlap from given
     pebble coordinates and return non-overlapping coordinates
@@ -252,9 +253,14 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
 
     #step 1: find initial d_out, which is d such that pf = 1
     #core_vol should be a class attribute, with how often you use it
-    if type(active_core) == core.CylCore:
-        core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
-    d_out_0 = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebbles))
+    #if type(active_core) == core.CylCore:
+        #core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
+    #d_out_0 = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebbles))
+    #trying: instead of having d_out start as d if pf = 1, try largest possible
+    #diameter for desired packing fraction
+    num = pf*(active_core.core_radius**2)*active_core.core_height
+    denom = n_pebbles*(4/3)
+    d_out_0 = 2*np.cbrt(num/denom)
     d_out = d_out_0
     d_in_last = 0.0
     sum_d_in=0
@@ -274,11 +280,12 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
                                         rod,
                                         d_out)
         i += 1
-        if i%10000==0:
-            print(d_out,d_in)
-        
         sum_d_in+=d_in
         sum_i+=1
+        if i%50000==0:
+            print(d_out,d_in,sum_d_in/sum_i)
+            sum_d_in = 0
+            sum_i = 0
         rod =  nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
         if not rod:
             overlap = False
@@ -288,28 +295,18 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,k):
             if d_in<=d_in_last:
                 pass
             elif d_in>d_in_last:
-                del_pf = abs(n_to_pf(active_core,d_out/2,n_pebbles)-
+                if d_out < 2*pebble_radius:
+                    #num = pf*(active_core.core_radius**2)*active_core.core_height
+                    #denom = n_pebbles*(4/3)
+                    #d_out = 2*np.cbrt(num/denom)
+                    d_out = d_out_0
+                else:
+                    del_pf = abs(n_to_pf(active_core,d_out/2,n_pebbles)-
                         n_to_pf(active_core,d_in/2,n_pebbles))
-                j = int(np.floor(-np.log10(del_pf)))
-                d_out = d_out - (0.5**j)*(k/n_pebbles)*d_out_0
+                    j = int(np.floor(-np.log10(del_pf)))
+                    d_out = d_out - (0.5**j)*(k/n_pebbles)*d_out_0
             
-            if d_out < 2*pebble_radius:
-                #print('''Outer diameter converged too quickly.
-                #Try again with a smaller contraction rate.''')
-                #print("Maximum possible diameter with current packing:",
-                        #d_in)
-                #overlap = False
-                #break
-            
-                #this is almost certainly an insane thing to do
-                d_out = d_out_0
-                #make it try again from the top
-                print("average d_in this attempt is ", sum_d_in/sum_i)
-                print("i is ", i)
-                sum_d_in=0
-                sum_i=0
-                #find avg d_in this attempt and then reset
-        if i > 10**9:
+        if i > 10**6:
             overlap = False
             print("Did not reach packing fraction")
             print("Maximum possible pebble diameter is currently ", d_in)
