@@ -282,11 +282,10 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k):
         i += 1
         sum_d_in+=d_in
         sum_i+=1
-        if i%20000==0:
+        if i%10000==0:
             print(d_out,d_in,sum_d_in/sum_i)
             sum_d_in = 0
             sum_i = 0
-            coords = perturb(active_core,coords,pebble_radius,bounds)
         rod =  nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
         if not rod:
             overlap = False
@@ -294,13 +293,15 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k):
         else:
             d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
             if d_in<=d_in_last:
-                pass
+                coords = perturb(active_core,coords,pebble_radius,bounds)
+                rod =  nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
+                d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
             elif d_in>d_in_last:
                 if d_out <= 2*pebble_radius:
                     #num = pf*(active_core.core_radius**2)*active_core.core_height
                     #denom = n_pebbles*(4/3)
                     #d_out = 2*np.cbrt(num/denom)
-                    d_out = 2*pebble_radius
+                    d_out = d_out_0
                 else:
                     del_pf = abs(n_to_pf(active_core,d_out/2,n_pebbles)-
                         n_to_pf(active_core,d_in/2,n_pebbles))
