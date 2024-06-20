@@ -4,8 +4,9 @@ import math
 from collections import defaultdict
 from didymus import core
 from didymus import pebble
-rng = np.random.default_rng()
-
+rng = np.random.default_rng(7357)
+#RESTORE THIS SEED LATER, IT IS REMOVED FOR DEBUGGING
+#REMOVE SET RNG SEEDS IN FIND_START_COORDS, SELECT_PAIR, AND PERTURB WHEN DONE
 
 
 def pebble_packing(active_core, pebble_radius, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**(-3)):
@@ -205,7 +206,6 @@ def find_start_coords(active_core, bounds, n_pebbles):
         of a pebble
     '''
 
-
     coords = np.empty(n_pebbles,dtype=np.ndarray)
     for i in range(n_pebbles):
         f = rng.random()
@@ -257,10 +257,12 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k):
         #core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
     #d_out_0 = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebbles))
     #trying: instead of having d_out start as d if pf = 1, try largest possible
-    #diameter for desired packing fraction
-    num = pf*(active_core.core_radius**2)*active_core.core_height
+    #diameter to get to pf max for this number of pebbles
+    num = 0.64*(active_core.core_radius**2)*active_core.core_height
     denom = n_pebbles*(4/3)
     d_out_0 = 2*np.cbrt(num/denom)
+    #try d_out_0 = 2.0*pebble radius, does not change
+    #d_out_0 = 2.0*pebble_radius
     d_out = d_out_0
     d_in_last = 0.0
     sum_d_in=0
@@ -270,8 +272,9 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k):
     #to find worst overlap (shortest rod)
     overlap = True
     i = 0
-    rod = nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
+    rod,queue = nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
     d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
+    counter = 0
     
     while overlap:
         coords[rod[0]],coords[rod[1]] = fix_overlap(active_core,
@@ -286,27 +289,32 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k):
             print(d_out,d_in,sum_d_in/sum_i)
             sum_d_in = 0
             sum_i = 0
-        rod =  nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
+            print(queue)
+        rod,queue =  nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
         if not rod:
             overlap = False
             break
         else:
             d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
             if d_in<=d_in_last:
-                coords = perturb(active_core,coords,pebble_radius,bounds)
-                rod =  nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
-                d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
-            elif d_in>d_in_last:
-                if d_out <= 2*pebble_radius:
-                    #num = pf*(active_core.core_radius**2)*active_core.core_height
-                    #denom = n_pebbles*(4/3)
-                    #d_out = 2*np.cbrt(num/denom)
-                    d_out = d_out_0
-                else:
-                    del_pf = abs(n_to_pf(active_core,d_out/2,n_pebbles)-
-                        n_to_pf(active_core,d_in/2,n_pebbles))
-                    j = int(np.floor(-np.log10(del_pf)))
-                    d_out = d_out - (0.5**j)*(k/n_pebbles)*d_out_0
+                pass
+                if i >= 200000:
+                    counter +=1
+                    if counter > 10000:
+                        print("perturbing",d_in)
+                        coords = perturb(active_core,coords, pebble_radius,bounds)
+                        rod,queue =  nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
+                        d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
+                        print("perturbed",d_in)
+                        counter = 0
+            #elif d_in>d_in_last:
+            if d_out <= 2*pebble_radius:
+                d_out = 2*pebble_radius
+            else:
+                del_pf = abs(n_to_pf(active_core,d_out/2,n_pebbles)-
+                    n_to_pf(active_core,d_in/2,n_pebbles))
+                j = int(np.floor(-np.log10(del_pf)))
+                d_out = d_out - (0.5**j)*(k/n_pebbles)*d_out_0
             
         if i > 10**6:
             overlap = False
@@ -344,7 +352,6 @@ def nearest_neighbor(active_core, pebble_radius, coords,n_pebbles):
         The value is the distance (the length of the rod) between the two points
         defined by the key.
     '''
-
     init_pairs = {}
     for i in range(n_pebbles):
         p1, p2 = select_pair(coords,n_pebbles)
@@ -404,7 +411,7 @@ def nearest_neighbor(active_core, pebble_radius, coords,n_pebbles):
     #(these pebs aren't actually touching):
     pairs = list(rods.keys())
     for pair in pairs:
-        if rods[pair] > 2*pebble_radius:
+        if rods[pair] >= 2*pebble_radius:
             del rods[pair]
     #we also only move a given point relative to exactly one other point,
     #prioritizing the worst overlap (ie, the shortest rod)
@@ -425,7 +432,7 @@ def nearest_neighbor(active_core, pebble_radius, coords,n_pebbles):
         worst_overlap = None
     else:
         worst_overlap = min(rods, key = rods.get)
-    return worst_overlap
+    return worst_overlap, rods
 
 def select_pair(coords,n_pebbles):
     '''
@@ -445,7 +452,6 @@ def select_pair(coords,n_pebbles):
         Integers corresponding to the index of a point in coords,
         where p1 < p2.
     '''
-
     p1 = rng.integers(0,n_pebbles) #open on the upper end
     p2 = p1
     while p2 == p1:
@@ -582,35 +588,35 @@ def fix_overlap(active_core,bounds, coords, pair, d_out):
 
     return p1,p2
 
-def perturb(active_core,coords,pebble_radius,bounds):
+def perturb(active_core,coords, pebble_radius,bounds):
     '''
     randomly perturbs pebble centers
     '''
-    
+
     for p in coords:
-        ux = rng.random()
-        uy = rng.random()
-        uz = rng.random()
+        ux = rng.choice([-1,1])*rng.random()
+        uy = rng.choice([-1,1])*rng.random()
+        uz = rng.choice([-1,1])*rng.random()
         unorm = np.linalg.norm([ux,uy,uz])
         uvector = np.array([ux/unorm,uy/unorm,uz/unorm])
-        l = (pebble_radius*rng.random()**2)/100
-        for i in range(3):
-            p[i] += uvector[i]*l
+        l = (pebble_radius*rng.random()**2)
+        p += uvector*l
     
     for p in coords:
         p_to_center = np.linalg.norm(p[:2]-active_core.origin[:2])
         if p_to_center > bounds[0]:
             l_out = abs(p_to_center-bounds[0])
-            ux_p_to_center = (active_core.origin[0]-p[0])/p_to_center
-            uy_p_to_center = (active_core.origin[1]-p[1])/p_to_center
-            p[0] += ux_p_to_center*l_out
-            p[1] += uy_p_to_center*l_out
+            ux_to_center = (active_core.origin[0]-p[0])/p_to_center
+            uy_to_center = (active_core.origin[1]-p[1])/p_to_center
+            p[0] += ux_to_center*l_out
+            p[1] += uy_to_center*l_out
 
         if p[2] > bounds[2]:
             p[2] = bounds[2]
             
         if p[2] < bounds[1]:
             p[2] = bounds[1]
+                
             
     return coords
         
