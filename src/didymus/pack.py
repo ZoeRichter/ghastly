@@ -524,8 +524,52 @@ def mesh_grid(active_core,coords,n_pebbles,delta):
 
 
     return mesh_id
+    
+def fix_overlap_main(active_core, bounds, coords, pair, queue, d_out):
+    '''
+    main overlap function
+    '''
+    
+    cloud = {}
+    
+    for p in pair:
+        temp = []
+        for rod in queue:
+            if p in rod:
+                temp.append(rod)
+        cloud[p] = temp
+    
+    if len(cloud[pair[0]]) == len(cloud[pair[1]]) == 1:
+        center = pair[0]
+        multi_overlap = False
+    else:
+        multi_overlap = True
+        if len(cloud[pair[0]]) > len(cloud[pair[1]]):
+            center = pair[0]
+        elif len(cloud[pair[0]]) < len(cloud[pair[1]]):
+            center = pair[1]
+        else:
+            center = pair[0]
+    
+    if multi_overlap == False:
+        coords[pair[0]],coords[pair[1]] = single_overlap(active_core,
+                                                        bounds,
+                                                        coords,
+                                                        cloud[center],
+                                                        d_out)
+    else:
+        coords = multi_overlap(active_core,
+                                bounds,
+                                coords,
+                                cloud,
+                                center,
+                                queue,
+                                d_out)
+    return coords
+        
+    
 
-def fix_overlap(active_core,bounds, coords, pair, d_out):
+def single_overlap(active_core,bounds, coords, pair, d_out):
     '''
     Moves the two points in rod an equal and opposite distance such that
     they are d_out apart
@@ -597,76 +641,58 @@ def fix_overlap(active_core,bounds, coords, pair, d_out):
 
     return p1,p2
     
-def fix_overlap_v2(active_core, bounds, coords, pair, queue, d_out):
+def multi_overlap(active_core, bounds, coords, cloud, center, queue, d_out):
     '''
     centroid-based overlap fix
     '''
     
-    cloud = {}
+    not_apart = True
+    j = 0
     
-    for p in pair:
-        temp = []
-        for rod in queue:
-            if p in rod:
-                temp.append(rod)
-        cloud[p] = temp
+    while not_apart:
+        center_avg = [0,0,0]
+        for rod in cloud[center]:
+            for p in rod:
+                if p != center:
+                    center_avg += coords[p]
+    
+        center_avg = center_avg/len(cloud[center])
+        coords[center] = center_avg
         
-    if len(cloud[pair[0]]) > len(cloud[pair[1]]):
-        center = pair[0]
-    elif len(cloud[pair[0]]) < len(cloud[pair[1]]):
-        center = pair[1]
-    else:
-        center = pair[0]
-    
-    center_avg = [0,0,0]
-    for rod in cloud[center]:
-        for p in rod:
-            if p != center:
-                center_avg += coords[p]
-    
-    print(coords[center])
-    center_avg = center_avg/len(cloud[center])
-    coords[center] = center_avg
-    print(coords[center])
-    
-    for rod in cloud[center]:
-        not_apart = True
-        j=0
-        while not_apart:
-            normp1p2 = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
-            up1p2 = (coords[rod[0]]-coords[rod[1]])/normp1p2
-            l = (d_out-normp1p2)/2
-            print(l)
-            for i, p in enumerate([coords[rod[0]],coords[rod[1]]]):
-                if i ==0:
-                    p += up1p2*l
+        for rod in cloud[center]:
+            magp1p2 = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
+            up1p2 = (coords[rod[0]]-coords[rod[1]])/magp1p2
+            l = (d_out-normp1p2)
+            for p in rod:
+                if p == center:
+                    pass
                 else:
-                    p += -up1p2*l
-            print(d_out,np.linalg.norm(coords[rod[0]]-coords[rod[1]]))
-        
+                    coords[p] += up1p2*l
+            
             for p in [coords[rod[0]],coords[rod[1]]]:
-                p_to_center = np.linalg.norm(p[:2]-active_core.origin[:2])
-                if p_to_center > bounds[0]:
-                    l_out = abs(p_to_center-bounds[0])
-                    ux_p_to_center = (active_core.origin[0]-p[0])/p_to_center
-                    uy_p_to_center = (active_core.origin[1]-p[1])/p_to_center
-                    p[0] += ux_p_to_center*l_out
-                    p[1] += uy_p_to_center*l_out
+                p_to_origin = np.linalg.norm(p[:2]-active_core.origin[:2])
+                if p_to_origin > bounds[0]:
+                    l_out = abs(p_to_origin-bounds[0])
+                    ux_p_to_origin = (active_core.origin[0]-p[0])/p_to_origin
+                    uy_p_to_origin = (active_core.origin[1]-p[1])/p_to_origin
+                    p[0] += ux_p_to_origin*l_out
+                    p[1] += uy_p_to_origin*l_out
 
                 if p[2] > bounds[2]:
                     p[2] = bounds[2]
             
                 if p[2] < bounds[1]:
                     p[2] = bounds[1]
-                
-            normp1p2 = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
-            if math.isclose(normp1p2,d_out) or normp1p2>d_out:
-                not_apart = False
+        normp1p2 = []
+        for rod in cloud[center]:
+            normp1p2.append(np.linalg.norm(coords[rod[0]]-coords[rod[1]]))
+        if math.isclose(min(normp1p2),d_out) or min(normp1p2)>d_out:
+            not_apart = False
             
-            if j>100:
-                print("still not apart")
-                not_apart = False
-            j+=1
+        if j>100:
+            print("still not apart")
+            not_apart = False
+        j+=1
     
     return coords
     
