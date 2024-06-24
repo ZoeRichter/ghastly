@@ -9,7 +9,7 @@ rng = np.random.default_rng(7357)
 #REMOVE SET RNG SEEDS IN FIND_START_COORDS, SELECT_PAIR, AND PERTURB WHEN DONE
 
 
-def pebble_packing(active_core, pebble_radius, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**(-3),exp_fix = False):
+def pebble_packing(active_core, pebble_radius, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**(-3),exp_fix = False, perturbing = False):
     '''
     Function to pack pebbles into a cylindrical core (see the CylCore
     Class) using the Jodrey-Tory method.  Users must either define
@@ -97,7 +97,8 @@ def pebble_packing(active_core, pebble_radius, n_pebbles=0,n_mat_ids=0,pf=0,pf_m
                                 n_pebbles,
                                 pf,
                                 k,
-                                exp_fix)
+                                exp_fix,
+                                perturbing)
 
     #generate the list of didymus pebbles.  the specific method changes with
     #whether the user originally gave pf or N
@@ -219,7 +220,7 @@ def find_start_coords(active_core, bounds, n_pebbles):
 
     return coords
 
-def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k,exp_fix):
+def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k,exp_fix,perturbing):
     '''
     Performs the Jodrey-Tory algorithm to remove overlap from given
     pebble coordinates and return non-overlapping coordinates
@@ -279,13 +280,13 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k,exp_fix
     
     while overlap:
         if exp_fix ==False:
-            coords[rod[0]],coords[rod[1]] = fix_overlap(active_core,
+            coords[rod[0]],coords[rod[1]] = single_overlap(active_core,
                                             bounds,
                                             coords,
                                             rod,
                                             d_out)
         else:
-            coords = fix_overlap_v2(active_core,
+            coords = fix_overlap_main(active_core,
                                     bounds,
                                     coords,
                                     rod,
@@ -298,7 +299,7 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k,exp_fix
             print(d_out,d_in,sum_d_in/sum_i)
             sum_d_in = 0
             sum_i = 0
-            print(list(queue.keys))
+            print(list(queue.keys()))
         rod,queue =  nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
         if not rod:
             overlap = False
@@ -307,16 +308,15 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k,exp_fix
             d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
             if d_in<=d_in_last:
                 pass
-                #if i >= 200000:
-                    #counter +=1
-                    #if counter > 10000:
-                        #print("perturbing",d_in)
-                        #coords = perturb(active_core,coords, pebble_radius,bounds)
-                        #rod,queue =  nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
-                        #d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
-                        #print("perturbed",d_in)
-                        #counter = 0
-            #elif d_in>d_in_last:
+                if i >= 200000 and perturbing == True:
+                    counter +=1
+                    if counter > 10000:
+                        print("perturbing",d_in)
+                        coords = perturb(active_core,coords, pebble_radius,bounds)
+                        rod,queue =  nearest_neighbor(active_core,pebble_radius,coords,n_pebbles)
+                        d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
+                        print("perturbed",d_in)
+                        counter = 0
             if d_out <= 2*pebble_radius:
                 d_out = 2*pebble_radius
             else:
@@ -325,7 +325,7 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k,exp_fix
                 j = int(np.floor(-np.log10(del_pf)))
                 d_out = d_out - (0.5**j)*(k/n_pebbles)*d_out_0
             
-        if i > 10**5:
+        if i > 10**7:
             overlap = False
             print("Did not reach packing fraction")
             print("Maximum possible pebble diameter is currently ", d_in)
@@ -540,10 +540,9 @@ def fix_overlap_main(active_core, bounds, coords, pair, queue, d_out):
         cloud[p] = temp
     
     if len(cloud[pair[0]]) == len(cloud[pair[1]]) == 1:
-        center = pair[0]
-        multi_overlap = False
+        multiple = False
     else:
-        multi_overlap = True
+        multiple = True
         if len(cloud[pair[0]]) > len(cloud[pair[1]]):
             center = pair[0]
         elif len(cloud[pair[0]]) < len(cloud[pair[1]]):
@@ -551,11 +550,11 @@ def fix_overlap_main(active_core, bounds, coords, pair, queue, d_out):
         else:
             center = pair[0]
     
-    if multi_overlap == False:
+    if multiple == False:
         coords[pair[0]],coords[pair[1]] = single_overlap(active_core,
                                                         bounds,
                                                         coords,
-                                                        cloud[center],
+                                                        pair,
                                                         d_out)
     else:
         coords = multi_overlap(active_core,
@@ -650,19 +649,26 @@ def multi_overlap(active_core, bounds, coords, cloud, center, queue, d_out):
     j = 0
     
     while not_apart:
+        
         center_avg = [0,0,0]
         for rod in cloud[center]:
             for p in rod:
                 if p != center:
                     center_avg += coords[p]
-    
         center_avg = center_avg/len(cloud[center])
         coords[center] = center_avg
+        
+        unit = rng.choice([-1,1],3)*rng.random(3)
+        unorm = np.linalg.norm(unit)
+        uvector = unit/unorm
+        l = (d_out*rng.random()**2)
+        coords[center] += uvector*l
+
         
         for rod in cloud[center]:
             magp1p2 = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
             up1p2 = (coords[rod[0]]-coords[rod[1]])/magp1p2
-            l = (d_out-normp1p2)
+            l = (d_out-magp1p2)
             for p in rod:
                 if p == center:
                     pass
@@ -689,8 +695,8 @@ def multi_overlap(active_core, bounds, coords, cloud, center, queue, d_out):
         if math.isclose(min(normp1p2),d_out) or min(normp1p2)>d_out:
             not_apart = False
             
-        if j>100:
-            print("still not apart")
+        if j>10000:
+            print("still not apart",min(normp1p2))
             not_apart = False
         j+=1
     
