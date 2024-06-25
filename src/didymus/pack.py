@@ -217,7 +217,7 @@ def find_start_coords(active_core, bounds, n_pebbles):
 
     return coords
 
-def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k,exp_fix,perturbing):
+def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k):
     '''
     Performs the Jodrey-Tory algorithm to remove overlap from given
     pebble coordinates and return non-overlapping coordinates
@@ -274,7 +274,7 @@ def jt_algorithm(active_core,pebble_radius, bounds,coords,n_pebbles,pf,k,exp_fix
     d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
     counter = 0
     
-    while overlap::
+    while overlap:
         coords[rod[0]],coords[rod[1]] = fix_overlap(active_core,
                                         bounds,
                                         coords,
