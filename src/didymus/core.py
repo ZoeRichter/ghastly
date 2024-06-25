@@ -8,7 +8,7 @@ class Core:
 	information necessary to determine the core geometry and
 	flow direction.
 	'''
-	def __init__(self,origin=np.zeros(3),downward_flow=True,buff=10**(-3)):
+	def __init__(self,origin=np.zeros(3),buff=10**(-3)):
 		'''
 		Initializes a single instance of a Core object.  As
 		this does not specify the shape of the core, the Core
@@ -29,7 +29,6 @@ class Core:
 		
 		'''
 		self.origin = origin
-		self.downward_flow = downward_flow
 		self.buff = buff
 	
 class CylCore(Core):
