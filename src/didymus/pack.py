@@ -4,7 +4,7 @@ import math
 from collections import defaultdict
 from didymus import core
 from didymus import pebble
-rng = np.random.default_rng(7357)
+rng = np.random.default_rng()
 
 
 
@@ -261,7 +261,7 @@ def jt_algorithm(active_core,coords,n_pebbles,pf,k):
         rod =  nearest_neighbor(active_core,coords,n_pebbles)
         d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
         i += 1
-        if i%100==0:
+        if i%1000==0:
             print(d_out,d_in,sum_d_in/sum_i)
             sum_d_in = 0
             sum_i = 0
@@ -319,9 +319,9 @@ def nearest_neighbor(active_core, coords,n_pebbles):
     '''
     init_pairs = {}
     for i in range(n_pebbles):
-        p1, p2 = select_pair(coords,n_pebbles)
+        p1, p2 = select_pair(n_pebbles)
         while (p1,p2) in init_pairs:
-            p1, p2 = select_pair(coords,n_pebbles)
+            p1, p2 = select_pair(n_pebbles)
         #frobenius norm is default
         init_pairs[(p1,p2)] = np.linalg.norm(coords[p1]-coords[p2])
     delta = min(init_pairs.values())
@@ -400,7 +400,7 @@ def nearest_neighbor(active_core, coords,n_pebbles):
         worst_overlap = min(rods, key = rods.get)
     return worst_overlap
 
-def select_pair(coords,n_pebbles):
+def select_pair(n_pebbles):
     '''
     select random pair of points from list of coords
 
@@ -530,19 +530,7 @@ def fix_overlap(active_core, coords, pair, d_out):
         
             
         for p in [p1,p2]:
-            p_to_center = np.linalg.norm(p[:2]-active_core.origin[:2])
-            if p_to_center > active_core.bounds[0]:
-                l_out = abs(p_to_center-active_core.bounds[0])
-                ux_p_to_center = (active_core.origin[0]-p[0])/p_to_center
-                uy_p_to_center = (active_core.origin[1]-p[1])/p_to_center
-                p[0] += ux_p_to_center*l_out
-                p[1] += uy_p_to_center*l_out
-
-            if p[2] > active_core.bounds[2]:
-                p[2] = active_core.bounds[2]
-            
-            if p[2] < active_core.bounds[1]:
-                p[2] = active_core.bounds[1]
+           p = wrangle_pebble(active_core,p)
                 
         normp1p2 = np.linalg.norm(p1-p2)
         if math.isclose(normp1p2,d_out) or normp1p2>d_out:
@@ -571,20 +559,27 @@ def perturb(active_core,coords):
         p += uvector*l
     
     for p in coords:
-        p_to_center = np.linalg.norm(p[:2]-active_core.origin[:2])
-        if p_to_center > active_core.bounds[0]:
-            l_out = abs(p_to_center-active_core.bounds[0])
-            ux_to_center = (active_core.origin[0]-p[0])/p_to_center
-            uy_to_center = (active_core.origin[1]-p[1])/p_to_center
-            p[0] += ux_to_center*l_out
-            p[1] += uy_to_center*l_out
-
-        if p[2] > active_core.bounds[2]:
-            p[2] = active_core.bounds[2]
-            
-        if p[2] < active_core.bounds[1]:
-            p[2] = active_core.bounds[1]
+        p = wrangle_pebble(active_core,p)
                 
             
     return coords
+    
+def wrangle_pebble(active_core,p):
+    '''
+    yee haw
+    '''
+    p_to_origin = np.linalg.norm(p[:2]-active_core.origin[:2])
+    if p_to_origin > active_core.bounds[0]:
+        l_out = p_to_origin-active_core.bounds[0]
+        unit_po = (active_core.origin[:2]-p[:2])/p_to_origin
+        p[:2] += unit_po*l_out
+
+    if p[2] > active_core.bounds[2]:
+        p[2] = active_core.bounds[2]
+            
+    if p[2] < active_core.bounds[1]:
+        p[2] = active_core.bounds[1]
         
+    return p
+    
+

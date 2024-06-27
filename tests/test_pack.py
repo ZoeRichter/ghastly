@@ -41,40 +41,50 @@ def test_n_to_pf():
 def test_find_start_coords():
 	'''
 	'''
-	#make sure length of starting coords is N
-    #make sure points in core
-    #currently function assumes you won't get repeats - enough of the factors
-    #are randomly generated that I think that's fair
-    #could, using the 7357 seed, find the first starting coord as function
-    #does, and make sure it matches the first item in start_coords?
-    #but if you don't reset the generator, I think it wouldn't be, so
-    #find_start_coords
-    #test_rng = 7357
-    #find first coord same way find start coords does
-    #make sure they are equal
-    #^but is this a useful test
-    #could you check for unifrom randomness by calculating the centroid of the
-    #start coords point cloud, and making sure it is in the area of the core
-    #origin?
+    
+    core_r = 5.0
+    core_h = 20.0
+    pebble_r = 0.5
+    test_core = ddm.core.CylCore(core_r,core_h,pebble_r)
+    N = 1500
+    test_coords = ddm.pack.find_start_coords(test_core,N)
+    for p in test_coords:
+        p_radius = np.linalg.norm(p[:2])
+        assert (p_radius < test_core.bounds[0] or
+                p_radius == pyt.approx(test_core.bounds[0]))
+        assert p[2] >= test_core.bounds[1] and p[2] <= test_core.bounds[2]
+    
+    avg = np.sum(test_coords, axis=0)/N
+    assert (np.linalg.norm(avg) < pebble_r or
+            np.linalg.norm(avg) == pyt.approx(pebble_r))
 
 def test_jt_algorithm():
 	'''
 	'''
+    #could test looowwww packing fraction, confirm things like pebbles
+    #being in the core, d_in being at least 2*pebble_radius,
+    
 	pass
 	return
 	
 def test_nearest_neighbor():
 	'''
 	'''
-	pass
-	return
+	#feed nearest neightbor a selection of points where you already
+    #know the answer to the worst overlap, then confirm that nearest
+    #neighbor does indeed find that pair
 	
 def test_select_pair():
 	'''
 	'''
-	# check order of points (1, 2), not (2,1), 
-    #check you get two points in a tuple
-    #check that the point you get is among the points possible
+    
+    N = 10
+    for i in range(N):
+        p1,p2 = ddm.pack.select_pair(N)
+        assert p1 < p2
+        assert p1 >= 0 and p1 < N
+        assert p2 >= 0 and p2 < N
+    
 
 def test_mesh_grid():
 	'''
@@ -119,15 +129,6 @@ def test_mesh_grid():
 def test_fix_overlap():
 	'''
 	'''
-	#if you give a specific core, two points that you define explicitly, 
-    #and a simple d_out, you should be able to confirm that the function moves
-    #them apart and keeps them in the core
-    #do one test to just move, do one test that you know will move them out of
-    #bounds, and check that it 1) moves them back in bounds
-    # 2) repeats move until it is d_out apart (if you have the pebbles line up
-    #on an axis, you should be able to hand determine exactly what it will
-    #do, down to the number of iterations
-    
     pebble_r = 1.0
     core_r = 5.0
     core_h = 10.0
@@ -156,4 +157,13 @@ def test_fix_overlap():
             assert test_coords[p][2] >= test_core.bounds[1]
             assert test_coords[p][2] <= test_core.bounds[2]
     
+def test_perturb():
+    '''
+    '''
     
+    
+    
+    
+def test_wrangle_pebble():
+    '''
+    '''
