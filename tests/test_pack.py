@@ -7,7 +7,10 @@ def test_pebble_packing():
 	'''
 	Tests the pebble_packing function in pack.py
 	'''
-	
+	#add optional flag in pebble packing to supress output - you don't need it
+    #in tests.  in future, can make it part of simulation class, then pass sim 
+    #to function
+    
 	return
 	
 def test_pf_to_n():
@@ -73,6 +76,27 @@ def test_nearest_neighbor():
 	#feed nearest neightbor a selection of points where you already
     #know the answer to the worst overlap, then confirm that nearest
     #neighbor does indeed find that pair
+    pebble_r = 1.0
+    core_r = 5.0
+    core_h = 10.0
+    test_core = ddm.core.CylCore(core_r,core_h, pebble_r)
+    N = 10
+    test_coords = np.array([np.array([0.0,0.0,0.0]),
+                            np.array([0.0,0.1,0.0]),
+                            np.array([1.0,1.0,1.0]),
+                            np.array([1.5,1.5,-1.5]),
+                            np.array([2.0,-2.0,2.0]),
+                            np.array([2.5,-2.5,-2.5]),
+                            np.array([-1.0,-1.0,-1.0]),
+                            np.array([-1.5,-1.5,1.5]),
+                            np.array([-2.0,2.0,-2.0]),
+                            np.array([-2.5,2.5,2.5])])
+    worst_overlap = ddm.pack.nearest_neighbor(test_core, test_coords, N)
+    
+    assert worst_overlap[0] == 0
+    assert worst_overlap[1] == 1
+    
+    
 	
 def test_select_pair():
 	'''
@@ -132,7 +156,7 @@ def test_fix_overlap():
     pebble_r = 1.0
     core_r = 5.0
     core_h = 10.0
-    test_core = ddm.core.CylCore(core_r,core_h, pebble_r, buff = 0.0)
+    test_core = ddm.core.CylCore(core_r,core_h, pebble_r)
     test_coords = np.array([np.array([-2,0,0]),
                             np.array([1,0,0]),
                             np.array([-4,0,0]),
@@ -160,10 +184,59 @@ def test_fix_overlap():
 def test_perturb():
     '''
     '''
+    pebble_r = 1.0
+    core_r = 5.0
+    core_h = 10.0
+    test_core = ddm.core.CylCore(core_r,core_h, pebble_r)
     
+    #maybe make sure centroid after isn't super far off from centroid before
+    
+    test_coords = np.array([np.array([]),
+                            np.array([]),
+                            np.array([]),
+                            np.array([]),
+                            np.array([]),
+                            np.array([]),
+                            np.array([]),
+                            np.array([]),
+                            np.array([]),
+                            np.array([])])
+    centroid_before = np.sum(test_coords, axis=0)/10
+    after = ddm.pack.perturb(test_core,test_coords,perturb_amp = 0.1)
+    centroid_after = np.sum(after, axis=0)/10
+    assert np.linalg.norm(centroid_before-centroid_after) < test_core.bounds[0]
     
     
     
 def test_wrangle_pebble():
     '''
     '''
+    pebble_r = 1.0
+    core_r = 5.0
+    core_h = 10.0
+    test_core = ddm.core.CylCore(core_r,core_h, pebble_r)
+    
+    test_coords = np.array([np.array([0,0,0]),
+                            np.array([10,0,0]),
+                            np.array([-10,0,0]),
+                            np.array([0,10,0]),
+                            np.array([0,-10,0]),
+                            np.array([0,0,10]),
+                            np.array([0,0,-10]),
+                            np.array([10,10,10]),
+                            np.array([-10,-10,-10]))
+    after = ddm.pack.wrangle_pebble(test_core,test_coords)
+    
+    np.testing.assert_array_equal(after[0],test_coords[0])
+    assert after[1][0] == pyt.approx(test_core.bounds[0])
+    assert after[2][0] == pyt.approx(-test_core.bounds[0])
+    assert after[3][1] == pyt.approx(test_coords.bounds[0])
+    assert after[4][1] == pyt.approx(-test_core.bounds[0])
+    assert after[5][2] == pyt.approx(test_core.bounds[2])
+    assert after[6][2] == pyt.approx(test_core.bounds[1])
+    coord_at_45 = np.array([np.cos(np.pi/4),np.sin(np.pi/4)])*test_core.bounds[0]
+    np.testing.assert_array_equal(after[7][:2],coord_at_45)
+    assert after[7][2] == pyt.approx(test_core.bounds[2])
+    np.testing.assert_array_equal(after[8][:2],-1*coord_at_45)
+    assert after[8][2] == pyt.approx(test_core.bounds[1])
+    

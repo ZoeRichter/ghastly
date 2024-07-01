@@ -1,6 +1,8 @@
 #imports
 import numpy as np
 import math
+import csv
+from tqdm import tqdm
 from collections import defaultdict
 from didymus import core
 from didymus import pebble
@@ -8,7 +10,7 @@ rng = np.random.default_rng()
 
 
 
-def pebble_packing(active_core, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**(-2)):
+def pebble_packing(active_core, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**(-2),perturb_amp=1):
     '''
     Function to pack pebbles into a cylindrical core (see the CylCore
     Class) using the Jodrey-Tory method.  Users must either define
@@ -79,11 +81,12 @@ def pebble_packing(active_core, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**
     #help of Rabin-Lipton method of probalisticaly solving the
     #nearest neighbor problem
 
-    final_coords = jt_algorithm(active_core,
+    final_coords,output_list = jt_algorithm(active_core,
                                 init_coords,
                                 n_pebbles,
                                 pf,
-                                k)
+                                k,
+                                perturb_amp)
 
     #generate the list of didymus pebbles.  the specific method changes with
     #whether the user originally gave pf or N
@@ -110,6 +113,16 @@ def pebble_packing(active_core, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**
             for _ in range(pebble_split[key][1]):
                 pebbles.append(pebble.Pebble(final_coords[counter], active_core.pebble_radius, key ,counter))
                 counter+=1
+    #replace this later with something better - preferably an output class
+    output_name = str(k)+"_"+str(perturb_amp)+"_output.csv"
+
+    with open(output_name, 'w', newline='') as csvfile:
+        fieldnames = ['i', 'd_out','d_in_i','d_in_avg']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+        writer.writeheader()
+        for row in output_list:
+            writer.writerow(row)
 
 
     return pebbles, final_coords
@@ -199,7 +212,7 @@ def find_start_coords(active_core, n_pebbles):
 
     return coords
 
-def jt_algorithm(active_core,coords,n_pebbles,pf,k):
+def jt_algorithm(active_core,coords,n_pebbles,pf,k,perturb_amp):
     '''
     Performs the Jodrey-Tory algorithm to remove overlap from given
     pebble coordinates and return non-overlapping coordinates
@@ -231,27 +244,28 @@ def jt_algorithm(active_core,coords,n_pebbles,pf,k):
 
     #step 1: find initial d_out, which is d such that pf = 1
     #core_vol should be a class attribute, with how often you use it
-    #if type(active_core) == core.CylCore:
-        #core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
-    #d_out_0 = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebbles))
+    if type(active_core) == core.CylCore:
+        core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
+    d_out_0 = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebbles))
     #trying: instead of having d_out start as d if pf = 1, try largest possible
     #diameter to get to pf max for this number of pebbles
-    num = 0.64*(active_core.core_radius**2)*active_core.core_height
-    denom = n_pebbles*(4/3)
-    d_out_0 = 2*np.cbrt(num/denom)
+    #num = 0.64*(active_core.core_radius**2)*active_core.core_height
+    #denom = n_pebbles*(4/3)
+    #d_out_0 = 2*np.cbrt(num/denom)
     d_out = d_out_0
     sum_d_in=0
     sum_i = 0
 
     #step 2: probabilistic nearest neighbor search
     #to find worst overlap (shortest rod)
-    overlap = True
-    i = 0
+    #i = 0
     rod = nearest_neighbor(active_core,coords,n_pebbles)
     d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
     counter = 0
     d_in_last = 0.0
-    while overlap:
+    output_list = []
+    max_attempts = 10**7
+    for i in tqdm(range(max_attempts), miniters = (max_attempts/100)):
         coords[rod[0]],coords[rod[1]] = fix_overlap(active_core,
                                         coords,
                                         rod,
@@ -260,19 +274,19 @@ def jt_algorithm(active_core,coords,n_pebbles,pf,k):
         sum_i+=1
         rod =  nearest_neighbor(active_core,coords,n_pebbles)
         d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
-        i += 1
-        if i%1000==0:
-            print(d_out,d_in,sum_d_in/sum_i)
+        if i%10000==0:
+            avg_d_in = sum_d_in/sum_i
+            ith_dict = {'i':i, 'd_out':d_out,'d_in_i':d_in,'d_in_avg':avg_d_in}
+            output_list.append(ith_dict)
             sum_d_in = 0
             sum_i = 0
         if not rod:
-            overlap = False
             break
         else:
             if d_in < d_in_last:
                 counter +=1
                 if counter == 2:
-                    coords = perturb(active_core,coords)
+                    coords = perturb(active_core,coords,perturb_amp)
                     rod =  nearest_neighbor(active_core,coords,n_pebbles)
                     d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
                     counter = 0
@@ -284,14 +298,12 @@ def jt_algorithm(active_core,coords,n_pebbles,pf,k):
                 j = int(np.floor(-np.log10(del_pf)))
                 d_out = d_out - (0.5**j)*(k/n_pebbles)*d_out_0
             
-        if i > 10**8:
-            overlap = False
+        if i == (max_attempts - 1):
             print("Did not reach packing fraction")
             print("Maximum possible pebble diameter is currently ", d_in)
             
         d_in_last = d_in
-    print(i)
-    return coords
+    return coords, output_list
 
 def nearest_neighbor(active_core, coords,n_pebbles):
     '''
@@ -544,18 +556,17 @@ def fix_overlap(active_core, coords, pair, d_out):
 
     return p1,p2
 
-def perturb(active_core,coords):
+def perturb(active_core,coords,perturb_amp):
     '''
     randomly perturbs pebble centers
     '''
-
+    l = active_core.pebble_radius*perturb_amp
     for p in coords:
         ux = rng.choice([-1,1])*rng.random()
         uy = rng.choice([-1,1])*rng.random()
         uz = rng.choice([-1,1])*rng.random()
         unorm = np.linalg.norm([ux,uy,uz])
         uvector = np.array([ux/unorm,uy/unorm,uz/unorm])
-        l = (active_core.pebble_radius*rng.random())/10
         p += uvector*l
     
     for p in coords:

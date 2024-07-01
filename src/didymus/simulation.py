@@ -2,7 +2,7 @@ import numpy as np
 import math
 from didymus import pack
 
-class Sim(self,active_core,pebble_radius, seed = None):
+class Sim(self,active_core, seed = None,output=True):
 	'''
 	Class for didymus simulations
 	'''
@@ -14,6 +14,7 @@ class Sim(self,active_core,pebble_radius, seed = None):
 		self.active_core = active_core
 		self.pebble_radius = pebble_radius
 		self.seed = seed
+        self.output = output
 
 
 
