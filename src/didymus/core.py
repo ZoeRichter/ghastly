@@ -1,14 +1,21 @@
 #imports
 import numpy as np
+#from numba import types
+#from numba.extending import typeof_impl
+from numba import float64
+from numba.experimental import jitclass
 
-class Core:
+core_params = [('origin', float64[:]),
+            ('buff', float64)]
+
+class Core(object):
     '''
     Class for a single Core object, which will be referenced
     in packing and moving Pebble objects.  Contains only the
     information necessary to determine the core geometry and
     flow direction.
     '''
-    def __init__(self,origin=np.zeros(3),buff=10**(-3)):
+    def __init__(self,origin_arg,buff_arg):
         '''
         Initializes a single instance of a Core object.  As
         this does not specify the shape of the core, the Core
@@ -28,15 +35,22 @@ class Core:
             used to prevent pebble surfaces overlapping core surfaces
         
         '''
-        self.origin = origin
-        self.buff = buff
-    
+        self.origin = origin_arg
+        self.buff = buff_arg
+
+cylcore_params = [('core_radius',float64),
+                ('core_height',float64),
+                ('pebble_radius',float64),
+                ('bounds',float64[:])]
+
+@jitclass(core_params+cylcore_params)
 class CylCore(Core):
     '''
     Class for a cylindrically shaped core, with its axis parallel
     to the z-axis.
     '''
-    def __init__(self, core_radius, core_height,pebble_radius, *args, **kwargs):
+    __init__Core = Core.__init__
+    def __init__(self,core_radius, core_height,pebble_radius, origin = np.zeros(3), buff = 10**(-3)):
         '''
         Initializes a single instance of a CylCore object.
         
@@ -54,7 +68,8 @@ class CylCore(Core):
             inside the core 
         
         '''
-        super().__init__(*args, **kwargs)
+        #super().__init__(*args, **kwargs)
+        self.__init__Core(origin,buff)
         self.core_radius = core_radius
         self.core_height = core_height
         self.pebble_radius = pebble_radius
@@ -66,4 +81,13 @@ class CylCore(Core):
         r_upper = self.core_radius - self.pebble_radius - self.buff
         self.bounds = np.array([r_upper, z_lower, z_upper])
         
+#class CylCoreType(types.type):
+    #def __init__(self):
+        #super(CylCoreType, self).__init__(name='CylCore')
+
+#cyl_core_type = CylCoreType()
         
+
+#@typeof_impl.register(CylCore)
+#def typeof_index(val, c):
+    #return cyl_core_type

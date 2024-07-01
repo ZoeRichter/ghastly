@@ -4,10 +4,11 @@ import math
 import csv
 from tqdm import tqdm
 from collections import defaultdict
+from numba import jit, objmode,float64, int64
+from numba.typed import Dict
 from didymus import core
 from didymus import pebble
 rng = np.random.default_rng()
-
 
 
 def pebble_packing(active_core, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**(-2),perturb_amp=1):
@@ -57,7 +58,6 @@ def pebble_packing(active_core, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**
 
     #add check to enforce a hard upper limit that pf <= 0.60
     assert pf <= 0.6, "pf must be less than or equal to 0.6"
-    assert type(active_core) == core.CylCore, "Only CylCore is currently supported"
 
     if n_pebbles != 0 and pf == 0:
         assert type(n_mat_ids) == np.ndarray,"n_mat_ids must be a numpy array with length equal to n_pebbles"
@@ -127,7 +127,7 @@ def pebble_packing(active_core, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**
 
     return pebbles, final_coords
 
-
+@jit
 def pf_to_n(active_core,radius, pf):
     '''
     Converts packing fraction, pf, to number of pebbles, n_pebbles.  Uses
@@ -146,14 +146,13 @@ def pf_to_n(active_core,radius, pf):
         Number of pebbles in active core region
 
     '''
-    if type(active_core) == core.CylCore:
-        core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
-        p_vol_tot = pf*core_vol
-        p_vol = (4/3)*np.pi*radius**3
-        n_pebbles = int(np.floor(p_vol_tot/p_vol))
-        return n_pebbles
+    core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
+    p_vol_tot = pf*core_vol
+    p_vol = (4/3)*np.pi*radius**3
+    n_pebbles = int(np.floor(p_vol_tot/p_vol))
+    return n_pebbles
 
-
+@jit
 def n_to_pf(active_core,radius, n_pebbles):
     '''
     Converts number of pebbles, n_pebbles, to packing fraction, pf
@@ -170,13 +169,11 @@ def n_to_pf(active_core,radius, n_pebbles):
     pf : float
         Packing fraction, given in decimal format
     '''
-    if type(active_core) == core.CylCore:
-        core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
-        p_vol = (4/3)*np.pi*radius**3
-        p_vol_tot = p_vol*n_pebbles
-        pf = p_vol_tot/core_vol
-        return pf
-
+    core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
+    p_vol = (4/3)*np.pi*radius**3
+    p_vol_tot = p_vol*n_pebbles
+    pf = p_vol_tot/core_vol
+    return pf
 
 def find_start_coords(active_core, n_pebbles):
     '''
@@ -199,19 +196,17 @@ def find_start_coords(active_core, n_pebbles):
         Numpy array of length n_pebbles, where each element is the centroid
         of a pebble
     '''
-
-    coords = np.empty(n_pebbles,dtype=np.ndarray)
+    coords = []
     for i in range(n_pebbles):
         f = rng.random()
         theta = rng.uniform(0,2*np.pi)
         x = active_core.origin[0] + f*active_core.bounds[0]*np.cos(theta)
         y = active_core.origin[1] + f*active_core.bounds[0]*np.sin(theta)
         z = rng.uniform(active_core.bounds[1],active_core.bounds[2])
-        coords[i] = np.array([x,y,z])
-
-
+        coords.append(np.array([x,y,z]))
     return coords
 
+@jit
 def jt_algorithm(active_core,coords,n_pebbles,pf,k,perturb_amp):
     '''
     Performs the Jodrey-Tory algorithm to remove overlap from given
@@ -244,8 +239,7 @@ def jt_algorithm(active_core,coords,n_pebbles,pf,k,perturb_amp):
 
     #step 1: find initial d_out, which is d such that pf = 1
     #core_vol should be a class attribute, with how often you use it
-    if type(active_core) == core.CylCore:
-        core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
+    core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
     d_out_0 = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebbles))
     d_out = d_out_0
     sum_d_in=0
@@ -259,8 +253,8 @@ def jt_algorithm(active_core,coords,n_pebbles,pf,k,perturb_amp):
     counter = 0
     d_in_last = 0.0
     output_list = []
-    max_attempts = 10**7
-    for i in tqdm(range(max_attempts), miniters = (max_attempts/100)):
+    max_attempts = 10**2
+    for i in range(max_attempts):
         coords[rod[0]],coords[rod[1]] = fix_overlap(active_core,
                                         coords,
                                         rod,
@@ -275,6 +269,8 @@ def jt_algorithm(active_core,coords,n_pebbles,pf,k,perturb_amp):
             output_list.append(ith_dict)
             sum_d_in = 0
             sum_i = 0
+        if i%10 == 0.0:
+            print(i)
         if not rod:
             break
         else:
@@ -300,6 +296,7 @@ def jt_algorithm(active_core,coords,n_pebbles,pf,k,perturb_amp):
         d_in_last = d_in
     return coords, output_list
 
+@jit
 def nearest_neighbor(active_core, coords,n_pebbles):
     '''
     Performs Lipton-modified Rabin algorithm for the
@@ -342,7 +339,8 @@ def nearest_neighbor(active_core, coords,n_pebbles):
     rods = {}
     for i, msqr in enumerate(mesh_id.keys()):
         #checking x index:
-        x_dict = defaultdict(list)
+        #x_dict = defaultdict(list)
+        x_dict = {}
         for sqr in list(mesh_id.keys())[i:]:
             if sqr[0]<= msqr[0]+1 and sqr[0]>=msqr[0]-1:
                 x_dict[sqr] = mesh_id[sqr]
@@ -352,14 +350,15 @@ def nearest_neighbor(active_core, coords,n_pebbles):
         #a previous pass) we can use this subset and search for applicable y
         #we know x_dict can't be empty, because it at least as the
         #central mesh grid square in it (msqr)
-        y_dict = defaultdict(list)
+        #y_dict = defaultdict(list)
+        y_dict = {}
         for xsqr in list(x_dict.keys()):
             if xsqr[1] <= msqr[1]+1 and xsqr[1] >= msqr[1]-1:
                 y_dict[xsqr] = mesh_id[xsqr]
 
         #repeat for z, using y_dict
         neighbors = []
-        for ysqr in list(x_dict.keys()):
+        for ysqr in list(y_dict.keys()):
             if ysqr[2] <= msqr[2]+1 and ysqr[2] >= msqr[2]-1:
                 neighbors += mesh_id[ysqr]
 
@@ -388,25 +387,26 @@ def nearest_neighbor(active_core, coords,n_pebbles):
             del rods[pair]
     #we also only move a given point relative to exactly one other point,
     #prioritizing the worst overlap (ie, the shortest rod)
-    for p in range(n_pebbles):
-        temp={}
-        pairs = list(rods.keys())
-        for pair in pairs:
-            if pair[0] ==  p or pair[1] == p:
-                temp[pair] = rods[pair]
-        if not temp:
-            pass
-        else:
-            temp_keys = list(temp.keys())
-            for tkey in temp_keys:
-                if temp[tkey] != min(temp.values()):
-                    del rods[tkey]
+    #for p in range(n_pebbles):
+        #temp={}
+        #pairs = list(rods.keys())
+        #for pair in pairs:
+            #if pair[0] ==  p or pair[1] == p:
+                #temp[pair] = rods[pair]
+        #if not temp:
+            #pass
+        #else:
+            #temp_keys = list(temp.keys())
+            #for tkey in temp_keys:
+                #if temp[tkey] != min(temp.values()):
+                    #del rods[tkey]
     if not rods:
         worst_overlap = None
     else:
         worst_overlap = min(rods, key = rods.get)
     return worst_overlap
 
+@jit
 def select_pair(n_pebbles):
     '''
     select random pair of points from list of coords
@@ -425,15 +425,16 @@ def select_pair(n_pebbles):
         Integers corresponding to the index of a point in coords,
         where p1 < p2.
     '''
-    p1 = rng.integers(0,n_pebbles) #open on the upper end
-    p2 = p1
-    while p2 == p1:
-        p2 = rng.integers(0,n_pebbles)
-
-    if p1 > p2:
+    with objmode(p1 = "int64", p2 = "int64"):
+        p1 = rng.integers(0,n_pebbles) #open on the upper end
+        p2 = p1
+        while p2 == p1:
+            p2 = rng.integers(0,n_pebbles)
+        if p1 > p2:
             p1, p2 = p2, p1
-    return int(p1), int(p2)
+    return p1, p2
 
+@jit
 def mesh_grid(active_core,coords,n_pebbles,delta):
     '''
     Determines what grid square in the Gamma lattice (from jt-algorithm)
@@ -470,7 +471,8 @@ def mesh_grid(active_core,coords,n_pebbles,delta):
     y_min = active_core.origin[1] - active_core.core_radius
     Mz = int(np.ceil(active_core.core_height/delta) -1)
     z_min = active_core.origin[2] - active_core.core_height/2
-    fild_sqrs = np.empty(n_pebbles, dtype=object)
+    #fild_sqrs = np.empty(n_pebbles, dtype=object)
+    fild_sqrs = []
     for i, p in enumerate(coords):
         ix= int(np.floor((p[0]-x_min)/delta))
         if ix == Mx+1:
@@ -481,8 +483,11 @@ def mesh_grid(active_core,coords,n_pebbles,delta):
         iz= int(np.floor((p[2]-z_min)/delta))
         if iz==Mz+1:
             iz=Mz
-        fild_sqrs[i] = (ix,iy,iz)
-    mesh_id = defaultdict(list)
+        fild_sqrs.append((ix,iy,iz))
+    #mesh_id = defaultdict(list)
+    mesh_id = Dict.empty(
+            key_type=(int64,int64,int64),
+            value_type=int64[:])
     for i, v in enumerate(fild_sqrs):
         mesh_id[v].append(i)
 
@@ -490,7 +495,7 @@ def mesh_grid(active_core,coords,n_pebbles,delta):
     return mesh_id
         
     
-
+@jit
 def fix_overlap(active_core, coords, pair, d_out):
     '''
     Moves the two points in rod an equal and opposite distance such that
@@ -551,6 +556,7 @@ def fix_overlap(active_core, coords, pair, d_out):
 
     return p1,p2
 
+@jit
 def perturb(active_core,coords,perturb_amp):
     '''
     randomly perturbs pebble centers
@@ -573,19 +579,20 @@ def perturb(active_core,coords,perturb_amp):
     '''
     l = active_core.pebble_radius*perturb_amp
     for p in coords:
-        ux = rng.choice([-1,1])*rng.random()
-        uy = rng.choice([-1,1])*rng.random()
-        uz = rng.choice([-1,1])*rng.random()
-        unorm = np.linalg.norm([ux,uy,uz])
-        uvector = np.array([ux/unorm,uy/unorm,uz/unorm])
+        with objmode(uvector="float64[:]"):
+            ux = rng.choice([-1,1])*rng.random()
+            uy = rng.choice([-1,1])*rng.random()
+            uz = rng.choice([-1,1])*rng.random()
+            unorm = np.linalg.norm([ux,uy,uz])
+            uvector = np.array([ux/unorm,uy/unorm,uz/unorm])
         p += uvector*l
     
     for p in coords:
         p = pebble_bounds(active_core,p)
                 
-            
     return coords
-    
+
+@jit
 def pebble_bounds(active_core,p):
     '''
     checks if a pebble is in core boundaries, and moves it inside if not
