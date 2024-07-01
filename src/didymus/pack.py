@@ -386,8 +386,8 @@ def nearest_neighbor(active_core, coords,n_pebbles):
     for pair in pairs:
         if rods[pair] >= 2*active_core.pebble_radius:
             del rods[pair]
-    we also only move a given point relative to exactly one other point,
-    prioritizing the worst overlap (ie, the shortest rod)
+    #we also only move a given point relative to exactly one other point,
+    #prioritizing the worst overlap (ie, the shortest rod)
     for p in range(n_pebbles):
         temp={}
         pairs = list(rods.keys())
@@ -537,7 +537,7 @@ def fix_overlap(active_core, coords, pair, d_out):
         
             
         for p in [p1,p2]:
-           p = wrangle_pebble(active_core,p)
+           p = pebble_bounds(active_core,p)
                 
         normp1p2 = np.linalg.norm(p1-p2)
         if math.isclose(normp1p2,d_out) or normp1p2>d_out:
@@ -581,7 +581,7 @@ def perturb(active_core,coords,perturb_amp):
         p += uvector*l
     
     for p in coords:
-        p = wrangle_pebble(active_core,p)
+        p = pebble_bounds(active_core,p)
                 
             
     return coords
