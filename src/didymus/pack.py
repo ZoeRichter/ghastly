@@ -247,11 +247,6 @@ def jt_algorithm(active_core,coords,n_pebbles,pf,k,perturb_amp):
     if type(active_core) == core.CylCore:
         core_vol = (np.pi*(active_core.core_radius**2))*active_core.core_height
     d_out_0 = 2*np.cbrt((3*core_vol)/(4*np.pi*n_pebbles))
-    #trying: instead of having d_out start as d if pf = 1, try largest possible
-    #diameter to get to pf max for this number of pebbles
-    #num = 0.64*(active_core.core_radius**2)*active_core.core_height
-    #denom = n_pebbles*(4/3)
-    #d_out_0 = 2*np.cbrt(num/denom)
     d_out = d_out_0
     sum_d_in=0
     sum_i = 0
@@ -391,21 +386,21 @@ def nearest_neighbor(active_core, coords,n_pebbles):
     for pair in pairs:
         if rods[pair] >= 2*active_core.pebble_radius:
             del rods[pair]
-    #we also only move a given point relative to exactly one other point,
-    #prioritizing the worst overlap (ie, the shortest rod)
-    #for p in range(n_pebbles):
-        #temp={}
-        #pairs = list(rods.keys())
-        #for pair in pairs:
-            #if pair[0] ==  p or pair[1] == p:
-                #temp[pair] = rods[pair]
-        #if not temp:
-            #pass
-        #else:
-            #temp_keys = list(temp.keys())
-            #for tkey in temp_keys:
-                #if temp[tkey] != min(temp.values()):
-                    #del rods[tkey]
+    we also only move a given point relative to exactly one other point,
+    prioritizing the worst overlap (ie, the shortest rod)
+    for p in range(n_pebbles):
+        temp={}
+        pairs = list(rods.keys())
+        for pair in pairs:
+            if pair[0] ==  p or pair[1] == p:
+                temp[pair] = rods[pair]
+        if not temp:
+            pass
+        else:
+            temp_keys = list(temp.keys())
+            for tkey in temp_keys:
+                if temp[tkey] != min(temp.values()):
+                    del rods[tkey]
     if not rods:
         worst_overlap = None
     else:
@@ -559,6 +554,22 @@ def fix_overlap(active_core, coords, pair, d_out):
 def perturb(active_core,coords,perturb_amp):
     '''
     randomly perturbs pebble centers
+    
+    Parameters
+    ----------
+    active_core : didymus CylCore object
+        didymus CylCore object defining the active core region
+    coords : numpy array
+        Numpy array of length n_pebbles, where each element is the centroid
+        of a pebble.  This is pre-perturbation.
+    perturb_amp : float
+        Fraction of pebble radius a pebble centroid will move when perturbed
+
+    Returns
+    ----------
+    coords : numpy array
+        Numpy array of length n_pebbles, where each element is the centroid
+        of a pebble.  This is post-perturbation.
     '''
     l = active_core.pebble_radius*perturb_amp
     for p in coords:
@@ -575,9 +586,23 @@ def perturb(active_core,coords,perturb_amp):
             
     return coords
     
-def wrangle_pebble(active_core,p):
+def pebble_bounds(active_core,p):
     '''
-    yee haw
+    checks if a pebble is in core boundaries, and moves it inside if not
+    
+    Parameters
+    ----------
+    active_core : didymus CylCore object
+        didymus CylCore object defining the active core region
+    p : numpy array
+        Three-element numpy array giving the x,y, and z coordinates of
+        the centroid of a pebble. This is pre-enforcing core boundaries.
+
+    Returns
+    ----------
+    p : numpy array
+        Three-element numpy array giving the x,y, and z coordinates of
+        the centroid of a pebble.  This is post-enforcing core boundaries.
     '''
     p_to_origin = np.linalg.norm(p[:2]-active_core.origin[:2])
     if p_to_origin > active_core.bounds[0]:

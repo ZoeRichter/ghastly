@@ -1,8 +1,6 @@
 import pytest as pyt
 import didymus as ddm
 
-#test_core = di.core.CylCore(10.0,50.0,np.array([3.0, 6.0, 9.0]))
-
 def test_pebble_packing():
 	'''
 	Tests the pebble_packing function in pack.py
@@ -64,11 +62,34 @@ def test_find_start_coords():
 def test_jt_algorithm():
 	'''
 	'''
-    #could test looowwww packing fraction, confirm things like pebbles
-    #being in the core, d_in being at least 2*pebble_radius,
     
-	pass
-	return
+    core_r = 5.0
+    core_h = 10.0
+    pebble_r = 0.5
+    test_core = ddm.core.CylCore(core_r,core_h,pebble_r)
+    N = 150
+    pf = 0.1
+    test_coords = ddm.pack.find_start_coords(test_core,N)
+    
+    test_results, _ = ddm.pack.jt_algorithm(test_core, 
+                                            test_coords,
+                                            N, 
+                                            pf, 
+                                            k = 0.001,
+                                            perturb_amp = 0)
+                                            
+    x_min = min(test_results[:,0])
+    x_max = max(test_results[:,0])
+    
+    y_min = min(test_results[:,1])
+    y_min = max(test_results[:,1])
+    
+    z_min = min(test_results[:,2])
+    z_min = max(test_results[:,2])
+    
+    assert x_min >= -test_core.bounds[0] and x_max <= test_core.bounds[0]
+    assert y_min >= -test_core.bounds[0] and y_max <= test_core.bounds[0]
+    assert z_min >= test_core.bounds[1] and z_max <= test_core.bounds[2]
 	
 def test_nearest_neighbor():
 	'''
