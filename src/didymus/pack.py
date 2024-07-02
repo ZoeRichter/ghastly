@@ -259,7 +259,7 @@ def jt_algorithm(active_core,coords,n_pebbles,pf,k,perturb_amp):
     counter = 0
     d_in_last = 0.0
     output_list = []
-    max_attempts = 10**7
+    max_attempts = 10**4
     for i in tqdm(range(max_attempts), miniters = (max_attempts/100)):
         coords[rod[0]],coords[rod[1]] = fix_overlap(active_core,
                                         coords,
@@ -269,7 +269,7 @@ def jt_algorithm(active_core,coords,n_pebbles,pf,k,perturb_amp):
         sum_i+=1
         rod =  nearest_neighbor(active_core,coords,n_pebbles)
         d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
-        if i%10000==0:
+        if i%1000==0:
             avg_d_in = sum_d_in/sum_i
             ith_dict = {'i':i, 'd_out':d_out,'d_in_i':d_in,'d_in_avg':avg_d_in}
             output_list.append(ith_dict)
@@ -359,7 +359,7 @@ def nearest_neighbor(active_core, coords,n_pebbles):
 
         #repeat for z, using y_dict
         neighbors = []
-        for ysqr in list(x_dict.keys()):
+        for ysqr in list(y_dict.keys()):
             if ysqr[2] <= msqr[2]+1 and ysqr[2] >= msqr[2]-1:
                 neighbors += mesh_id[ysqr]
 
