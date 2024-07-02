@@ -6,11 +6,11 @@ from tqdm import tqdm
 from collections import defaultdict
 from didymus import core
 from didymus import pebble
-rng = np.random.default_rng()
+rng = np.random.default_rng(7357)
 
 
 
-def pebble_packing(active_core, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**(-2),perturb_amp=1):
+def pebble_packing(active_core, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**(-2),perturb_amp=1,read_coords = False, read_file=None):
     '''
     Function to pack pebbles into a cylindrical core (see the CylCore
     Class) using the Jodrey-Tory method.  Users must either define
@@ -75,7 +75,10 @@ def pebble_packing(active_core, n_pebbles=0,n_mat_ids=0,pf=0,pf_mat_ids=0,k=10**
         using_pf = True
 
     #find the starting coords
-    init_coords = find_start_coords(active_core, n_pebbles)
+    if read_coords:
+        init_coords = np.loadtxt(read_file)
+    else:
+        init_coords = find_start_coords(active_core, n_pebbles)
 
     #now we actually get into the Jodrey-Tory algorithm, with the added
     #help of Rabin-Lipton method of probalisticaly solving the
@@ -253,38 +256,45 @@ def jt_algorithm(active_core,coords,n_pebbles,pf,k,perturb_amp):
 
     #step 2: probabilistic nearest neighbor search
     #to find worst overlap (shortest rod)
-    #i = 0
-    rod = nearest_neighbor(active_core,coords,n_pebbles)
-    d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
+    rod_queue =  nearest_neighbor(active_core,coords,n_pebbles)
+    d_in_key = min(rod_queue, key = rod_queue.get)
+    d_in = rod_queue[d_in_key]
     counter = 0
     d_in_last = 0.0
     output_list = []
-    max_attempts = 10**4
+    max_attempts = 10**3
     for i in tqdm(range(max_attempts), miniters = (max_attempts/100)):
-        coords[rod[0]],coords[rod[1]] = fix_overlap(active_core,
-                                        coords,
-                                        rod,
-                                        d_out)
-        sum_d_in+=d_in
-        sum_i+=1
-        rod =  nearest_neighbor(active_core,coords,n_pebbles)
-        d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
-        if i%1000==0:
+        for i in range(len(rod_queue)):
+            if not rod_queue:
+                break
+            else:
+                rod = min(rod_queue, key = rod_queue.get)
+                coords[rod[0]],coords[rod[1]] = fix_overlap(active_core,
+                                                coords,
+                                                rod,
+                                                d_out)
+                del rod_queue[rod]
+        if d_in < d_in_last:
+            counter +=1
+            if counter == 2:
+                    coords = perturb(active_core,coords,perturb_amp)
+
+        rod_queue =  nearest_neighbor(active_core,coords,n_pebbles)
+
+        if i%100==0:
             avg_d_in = sum_d_in/sum_i
             ith_dict = {'i':i, 'd_out':d_out,'d_in_i':d_in,'d_in_avg':avg_d_in}
             output_list.append(ith_dict)
             sum_d_in = 0
             sum_i = 0
-        if not rod:
+        if not rod_queue:
+            print("did it!")
             break
         else:
-            if d_in < d_in_last:
-                counter +=1
-                if counter == 2:
-                    coords = perturb(active_core,coords,perturb_amp)
-                    rod =  nearest_neighbor(active_core,coords,n_pebbles)
-                    d_in = np.linalg.norm(coords[rod[0]]-coords[rod[1]])
-                    counter = 0
+            d_in_key = min(rod_queue, key = rod_queue.get)
+            d_in = rod_queue[d_in_key]
+            sum_d_in+=d_in
+            sum_i+=1
             if d_out <= 2*active_core.pebble_radius:
                 d_out = 2*active_core.pebble_radius
             else:
@@ -296,6 +306,7 @@ def jt_algorithm(active_core,coords,n_pebbles,pf,k,perturb_amp):
         if i == (max_attempts - 1):
             print("Did not reach packing fraction")
             print("Maximum possible pebble diameter is currently ", d_in)
+            np.savetxt("restart.csv", coords)
             
         d_in_last = d_in
     return coords, output_list
@@ -330,9 +341,8 @@ def nearest_neighbor(active_core, coords,n_pebbles):
         while (p1,p2) in init_pairs:
             p1, p2 = select_pair(n_pebbles)
         #frobenius norm is default
-        init_pairs[(p1,p2)] = np.linalg.norm(coords[p1]-coords[p2])
+        init_pairs[(p1,p2)] = (sum((coords[p1]-coords[p2])**2))**(0.5)
     delta = min(init_pairs.values())
-    #print(delta)
 
     mesh_id= mesh_grid(active_core,coords,n_pebbles,delta)
     #now, for each grid square with at least one point (each element of mesh_id)
@@ -341,28 +351,13 @@ def nearest_neighbor(active_core, coords,n_pebbles):
     #(ix+/-1, iy+/-1, iz+/-1)
     rods = {}
     for i, msqr in enumerate(mesh_id.keys()):
-        #checking x index:
-        x_dict = defaultdict(list)
+        neighbors = []
         for sqr in list(mesh_id.keys())[i:]:
             if sqr[0]<= msqr[0]+1 and sqr[0]>=msqr[0]-1:
-                x_dict[sqr] = mesh_id[sqr]
-
-        #now that we have all the potential grid spaces
-        #with an x index in range (that weren't already caught in
-        #a previous pass) we can use this subset and search for applicable y
-        #we know x_dict can't be empty, because it at least as the
-        #central mesh grid square in it (msqr)
-        y_dict = defaultdict(list)
-        for xsqr in list(x_dict.keys()):
-            if xsqr[1] <= msqr[1]+1 and xsqr[1] >= msqr[1]-1:
-                y_dict[xsqr] = mesh_id[xsqr]
-
-        #repeat for z, using y_dict
-        neighbors = []
-        for ysqr in list(y_dict.keys()):
-            if ysqr[2] <= msqr[2]+1 and ysqr[2] >= msqr[2]-1:
-                neighbors += mesh_id[ysqr]
-
+                if sqr[1] <= msqr[1]+1 and sqr[1] >= msqr[1]-1:
+                    if sqr[2] <= msqr[2]+1 and sqr[2] >= msqr[2]-1:
+                        neighbors += mesh_id[sqr]
+        
         #now, the list neighbors should include all points in
         #msqr, plus all points in squares adjacent to msqr -
         #but should skip over squares that would have been included
@@ -375,17 +370,14 @@ def nearest_neighbor(active_core, coords,n_pebbles):
             else:
                 for p2 in neighbors[(i+1):]:
                     if p1<p2:
-                        rods[(p1,p2)] = np.linalg.norm(coords[p1]-coords[p2])
+                        rods[(p1,p2)] = (sum((coords[p1]-coords[p2])**2))**(0.5)
                     else:
-                        rods[(p2,p1)] = np.linalg.norm(coords[p1]-coords[p2])
+                        rods[(p2,p1)] = (sum((coords[p1]-coords[p2])**2))**(0.5)
     #now, we should have the unfiltered rod list.  but we don't really
     #need all of these
     # we can immediately drop any rod longer than the diameter of a pebble
     #(these pebs aren't actually touching):
-    pairs = list(rods.keys())
-    for pair in pairs:
-        if rods[pair] >= 2*active_core.pebble_radius:
-            del rods[pair]
+    rods = {k:v for (k,v) in rods.items() if v < 2*active_core.pebble_radius}
     #we also only move a given point relative to exactly one other point,
     #prioritizing the worst overlap (ie, the shortest rod)
     for p in range(n_pebbles):
@@ -401,11 +393,7 @@ def nearest_neighbor(active_core, coords,n_pebbles):
             for tkey in temp_keys:
                 if temp[tkey] != min(temp.values()):
                     del rods[tkey]
-    if not rods:
-        worst_overlap = None
-    else:
-        worst_overlap = min(rods, key = rods.get)
-    return worst_overlap
+    return rods
 
 def select_pair(n_pebbles):
     '''
@@ -524,22 +512,15 @@ def fix_overlap(active_core, coords, pair, d_out):
     p1, p2 = coords[pair[0]], coords[pair[1]]
     
     while not_apart:
-        normp1p2 = np.linalg.norm(p1-p2)
+        normp1p2 = (sum((p1-p2)**2))**(0.5)
         up1p2 = (p1-p2)/normp1p2
         l = (d_out-normp1p2)/2
-        if l<=0:
-            print(j,d_out,normp1p2)
-        for i, p in enumerate([p1,p2]):
-            if i ==0:
-                p += up1p2*l
-            else:
-                p += -up1p2*l
         
-            
-        for p in [p1,p2]:
-           p = pebble_bounds(active_core,p)
+        p1, p2 = p1+up1p2*l,p2-up1p2*l
+        
+        p1,p2 = pebble_bounds(active_core,p1), pebble_bounds(active_core,p2)
                 
-        normp1p2 = np.linalg.norm(p1-p2)
+        normp1p2 = (sum((p1-p2)**2))**(0.5)
         if math.isclose(normp1p2,d_out) or normp1p2>d_out:
             not_apart = False
             
@@ -573,10 +554,12 @@ def perturb(active_core,coords,perturb_amp):
     '''
     l = active_core.pebble_radius*perturb_amp
     for p in coords:
-        ux = rng.choice([-1,1])*rng.random()
-        uy = rng.choice([-1,1])*rng.random()
-        uz = rng.choice([-1,1])*rng.random()
-        unorm = np.linalg.norm([ux,uy,uz])
+        #ux = rng.choice([-1,1])*rng.random()
+        #uy = rng.choice([-1,1])*rng.random()
+        #uz = rng.choice([-1,1])*rng.random()
+        #unorm = np.linalg.norm([ux,uy,uz])
+        unit_dir = rng.choice([-1,1],3)*rng.random(3)
+        u_norm = (sum((unit_dir)**2))**(0.5)
         uvector = np.array([ux/unorm,uy/unorm,uz/unorm])
         p += uvector*l
     
@@ -604,7 +587,7 @@ def pebble_bounds(active_core,p):
         Three-element numpy array giving the x,y, and z coordinates of
         the centroid of a pebble.  This is post-enforcing core boundaries.
     '''
-    p_to_origin = np.linalg.norm(p[:2]-active_core.origin[:2])
+    p_to_origin = (sum((p[:2]-active_core.origin[:2])**2))**(0.5)
     if p_to_origin > active_core.bounds[0]:
         l_out = p_to_origin-active_core.bounds[0]
         unit_po = (active_core.origin[:2]-p[:2])/p_to_origin
