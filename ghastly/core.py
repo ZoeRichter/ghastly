@@ -94,7 +94,7 @@ class ConeCore(Core):
     The central axis is parallel to the z-axis.
     '''
 
-    def __init__(self, r_upper, r_lower, *args, **kwargs):
+    def __init__(self, r_major, r_minor, *args, **kwargs):
         '''
         Intializes a single instance of a ConeCore object.  All distances are
         in meters.
@@ -107,10 +107,10 @@ class ConeCore(Core):
             Radius of the bottom of the cone [m].
         '''
         super().__init__(*args, **kwargs)
-        self.r_upper = r_upper
-        self.r_lower = r_lower
+        self.r_major = r_major
+        self.r_minor = r_minor
         self.volume = ((1 / 3) * np.pi * self.h
-                       * (r_upper**2 + r_lower**2 + r_upper * r_lower))
+                       * (r_major**2 + r_minor**2 + r_major * r_minor))
 
 
 class AnnConeCore(Core):
@@ -119,27 +119,27 @@ class AnnConeCore(Core):
     to the z-axis
     '''
 
-    def __init__(self, r_out_up, r_in_up, r_out_low, r_in_low,
+    def __init__(self, r_out_major, r_in_major, r_out_minor, r_in_minor,
                  *args, **kwargs):
         '''
         Initializes an AnnConeCore object.  All distances should be in meters.
 
         Parameters
         ----------
-        r_out_up : float
+        r_out_major : float
             The outer radius at the upper part of the annular cone [m].
-        r_in_up : float
+        r_in_major : float
             The inner radius at the upper part of the annular cone [m].
-        r_out_low : float
+        r_out_minor : float
             The outer radius at the lower part of the annular cone [m].
-        r_in_low : float
+        r_in_minor : float
             The inner radius at the lower part of the annular cone [m].
         '''
         super().__init__(*args, **kwargs)
-        self.r_out_up = r_out_up
-        self.r_in_up = r_in_up
-        self.r_out_low = r_out_low
-        self.r_in_low = r_in_low
+        self.r_out_major = r_out_major
+        self.r_in_major = r_in_major
+        self.r_out_minor = r_out_minor
+        self.r_in_minor = r_in_minor
         self.volume = ((1 / 3) * np.pi * self.h * (
             (r_out_up**2 + r_out_low**2 + r_out_up * r_out_low)
             - (r_in_up**2 + r_in_low**2 + r_in_up * r_in_low)))

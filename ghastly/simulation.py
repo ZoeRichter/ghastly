@@ -10,7 +10,7 @@ class Sim:
 
     def __init__(self, r_pebble, t_final, pf, fidelity=1,
                  recirc_target=1, recirc_hz=1,
-                 core_intake={}, core_main={}, core_outtake={}, recirc={},
+                 core_inlet={}, core_main={}, core_outlet={}, recirc={},
                  k_rate=0.001, down_flow=True,
                  seed=rng.integers(1000000, 9999999)):
         '''
@@ -43,15 +43,15 @@ class Sim:
         recirc_hz : float
             For fidelity = 1 simulations.  The frequency of pebble
             recirculation used, in units of [pebbles/second].
-        core_intake : dict
+        core_inlet : dict
             Dictionary containing key:value pairs where each key is the name
             of a core element within the core intake zone, and the value is a
             dictionary with key:value pairs corresponding to a core element
             parameter and its value.
         core_main : dict
-            As core_intake, but for the main zone of the core.
-        core_outtake : dict
-            As core_intake, but for the outtake zone of the core.
+            As core_inlet, but for the main zone of the core.
+        core_outlet : dict
+            As core_inlet, but for the outlet zone of the core.
         k_rate : float
             Contraction rate, to be used with OpenMC's pack_spheres function.
             Default is 0.001.
@@ -70,9 +70,9 @@ class Sim:
         self.fidelity = fidelity
         self.recirc_target = recirc_target
         self.recirc_hz = recirc_hz
-        self.core_intake = core_intake
+        self.core_inlet = core_inlet
         self.core_main = core_main
-        self.core_outtake = core_outtake
+        self.core_outlet = core_outlet
         self.recirc = recirc
         self.k_rate = k_rate
         self.down_flow = down_flow

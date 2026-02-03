@@ -7,7 +7,7 @@ package		omp 1
 ##############################################################################
 variable	pi equal 3.1415927
 
-include		{{variable_filename}}
+include		{{variable_file}}
 
 variable	skin equal ${r_pebble}/12
 
@@ -32,7 +32,7 @@ atom_style	sphere
 
 boundary	f f f
 region		bounds block &
-		{{x_b.low}} {{x_b.up}} {{y_b.low}} {{y_b.up}} {{z_b.low}} {{z_b.up}}
+		{{x_b.min}} {{x_b.max}} {{y_b.min}} {{y_b.max}} {{z_b.min}} {{z_b.max}}
 create_box	6 bounds
 
 fix		track_passes all property/atom i_pass
@@ -59,8 +59,8 @@ balance		1.1 shift xyz 20 1.1
 ##############################################################################
 
 
-{% for filename in region_files -%}
-include		{{filename}}
+{% for file in region_files -%}
+include		{{file}}
 {% endfor -%}
 
 region		whole_core union {{n_regions}} &
@@ -77,7 +77,7 @@ fix		wall_gran all wall/gran/region hertz/history &
 
 variable	dump_freq equal 200000
 
-include		{{v_reg_fname}}
+include		{{v_reg_file}}
 group		2wallgroup dynamic all region 2wall
 group		5wallgroup dynamic all region 5wall
 group		8wallgroup dynamic all region 8wall
@@ -232,7 +232,7 @@ dump		recirc_ids recirc custom 1 recirc/step_*.bin id
 dump_modify	recirc_ids pad 15
 run		0
 undump		recirc_ids
-variable	displace equal (({{z_b.up}}-3*${d_pebble}) - bound(all, zmin))
+variable	displace equal (({{z_b.max}}-3*${d_pebble}) - bound(all, zmin))
 displace_atoms	recirc move 0.0 0.0 ${displace}
 
 run		${recirc_steps_adj}
