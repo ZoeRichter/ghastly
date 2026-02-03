@@ -64,7 +64,7 @@ class InputBlock:
 
     def create_core_zone(self, core_zone):
         '''
-        Given a specific core_zone, such as intake, main, or outtake, create
+        Given a specific core_zone, such as inlet, main, or outlet, create
         a dictionary with key:value pairs where each key is the name of a
         core element, and each value is the corresponding ghastly Core class
         object.
@@ -90,8 +90,8 @@ class InputBlock:
             if val["type"].casefold() == "cylinder":
                 core_block[key] = core.CylCore(x_c=val["x_c"],
                                                y_c=val["y_c"],
-                                               z_max=val["z_max"],
-                                               z_min=val["z_min"],
+                                               zmax=val["zmax"],
+                                               zmin=val["zmin"],
                                                r=val["r"],
                                                open_bottom=val["open_bottom"],
                                                open_top=val["open_top"])
@@ -99,10 +99,10 @@ class InputBlock:
             elif val["type"].casefold() == "cone":
                 core_block[key] = core.ConeCore(x_c=val["x_c"],
                                                 y_c=val["y_c"],
-                                                z_max=val["z_max"],
-                                                z_min=val["z_min"],
-                                                r_major=val["r_upper"],
-                                                r_minor=val["r_lower"],
+                                                zmax=val["zmax"],
+                                                zmin=val["zmin"],
+                                                r_major=val["r_major"],
+                                                r_minor=val["r_minor"],
                                                 open_bottom=val["open_bottom"],
                                                 open_top=val["open_top"])
             else:
@@ -139,17 +139,17 @@ class InputBlock:
             if val["type"].casefold() == "cylinder":
                 recirc_block[key] = core.CylCore(x_c=val["x_c"],
                                                  y_c=val["y_c"],
-                                                 z_max=val["z_max"],
-                                                 z_min=val["z_min"],
+                                                 zmax=val["zmax"],
+                                                 zmin=val["zmin"],
                                                  r=val["r"])
 
             elif val["type"].casefold() == "cone":
                 recirc_block[key] = core.ConeCore(x_c=val["x_c"],
                                                   y_c=val["y_c"],
-                                                  z_max=val["z_max"],
-                                                  z_min=val["z_min"],
-                                                  r_major=val["r_upper"],
-                                                  r_minor=val["r_lower"])
+                                                  zmax=val["zmax"],
+                                                  zmin=val["zmin"],
+                                                  r_major=val["r_major"],
+                                                  r_minor=val["r_minor"])
             else:
                 raise NameError("Type must be cylinder or cone.")
 

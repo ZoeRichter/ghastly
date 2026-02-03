@@ -406,7 +406,7 @@ def write_pour_main(pour_file, sim_block, variable_file, x_b, y_b, z_b,
 
     x_c_pour = main_inlet.x_c
     y_c_pour = main_inlet.y_c
-    zmax_pour = z_b["up"] - 0.01
+    zmax_pour = z_b["max"] - 0.01
     zmin_pour = main_core_zmax[1] + 0.01
 
     if type(main_inlet) == ghastly.core.CylCore:

@@ -7,7 +7,7 @@ class Core:
     a specific geometry, the Core class should not be used directly.
     '''
 
-    def __init__(self, x_c, y_c, z_max, z_min, regions=[],
+    def __init__(self, x_c, y_c, zmax, zmin, regions=[],
                  open_bottom="open 1", open_top="open 2"):
         '''
         Initializes a single instance of a Core object.
@@ -18,9 +18,9 @@ class Core:
             Coordinate of the core element's center on the x_axis.
         y_c : float
             Coordinate of the core element's center on the y_axis.
-        z_max : float
+        zmax : float
             Z-coordinate of the core element's top.
-        z_min : float
+        zmin : float
             Z-coordinate of the core element's bottom.
         regions : list
             List containing the region_id of each element within the given
@@ -33,12 +33,12 @@ class Core:
         '''
         self.x_c = x_c
         self.y_c = y_c
-        self.z_max = z_max
-        self.z_min = z_min
+        self.zmax = zmax
+        self.zmin = zmin
         self.regions = regions
         self.open_bottom = open_bottom
         self.open_top = open_top
-        self.h = z_max - z_min
+        self.h = zmax - zmin
 
 
 class CylCore(Core):

@@ -4,25 +4,25 @@
 		"t_final" : 3600,
 		"pf" : 0.35
 	},
-	"core_intake" : {
-		"intake_cyl" : {
+	"core_inlet" : {
+		"inlet_cyl" : {
 			"type" : "cylinder",
 			"x_c" : 0.05,
 			"y_c" : 0.0,
-			"z_max" : 1.2,
-			"z_min" : 1.1,
+			"zmax" : 1.2,
+			"zmin" : 1.1,
 			"r": 0.1,
 			"open_bottom" : "open 1",
 			"open_top" : "open 2"
 		},
-		"intake_cone" : {
+		"inlet_cone" : {
 			"type" : "cone",
 			"x_c" : 0.05,
 			"y_c" : 0.0,
-			"z_max" : 1.1,
-			"z_min" : 1.0,
-			"r_upper" : 0.1,
-			"r_lower" : 0.5,
+			"zmax" : 1.1,
+			"zmin" : 1.0,
+			"r_major" : 0.1,
+			"r_minor" : 0.5,
 			"open_bottom" : "open 1",
 			"open_top" : "open 2"
 		}
@@ -32,8 +32,8 @@
 			"type" : "cylinder",
 			"x_c" : 0.05,
 			"y_c" : 0.0,
-			"z_max" : 1.0,
-			"z_min" : 0.1,
+			"zmax" : 1.0,
+			"zmin" : 0.1,
 			"r" : 0.5,
 			"open_bottom" : "open 1",
 			"open_top" : "open 2"
@@ -42,21 +42,21 @@
 			"type" : "cone",
 			"x_c" : 0.05,
 			"y_c" : 0.0,
-			"z_max" : 0.1,
-			"z_min" : 0.0,
-			"r_upper" : 0.5,
-			"r_lower" : 0.1,
+			"zmax" : 0.1,
+			"zmin" : 0.0,
+			"r_major" : 0.5,
+			"r_minor" : 0.1,
 			"open_bottom" : "open 1",
 			"open_top" : "open 2"
 		}
 	},
-	"core_outtake" : {
-		"outtake_cyl" : {
+	"core_outlet" : {
+		"outlet_cyl" : {
 			"type" : "cylinder",		
 			"x_c" : 0.05,
 			"y_c" : 0.0,
-			"z_max" : 0.0,
-			"z_min" : -0.1,
+			"zmax" : 0.0,
+			"zmin" : -0.1,
 			"r" : 0.1,
 			"open_bottom" : "",
 			"open_top" : "open 2"
