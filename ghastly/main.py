@@ -43,9 +43,9 @@ def fill_core(input_file, rough_pf):
     rough_pack = []
     match sim_block.down_flow:
         case True:
-            pack_zones = sim_block.core_main | sim_block.core_outtake
+            pack_zones = sim_block.core_main | sim_block.core_outlet
         case False:
-            pack_zones = sim_block.core_main | sim_block.core_intake
+            pack_zones = sim_block.core_main | sim_block.core_inlet
 
     for element in pack_zones.values():
         if type(element) == ghastly.core.CylCore:
@@ -54,9 +54,9 @@ def fill_core(input_file, rough_pf):
         else:
             pass
 
-    outtake_vol = sum([i.volume for i in sim_block.core_outtake.values()])
+    outlet_vol = sum([i.volume for i in sim_block.core_outlet.values()])
     main_vol = sum([i.volume for i in sim_block.core_main.values()])
-    n_pebbles = int(np.floor((0.60*outtake_vol)/sim_block.pebble_volume) +
+    n_pebbles = int(np.floor((0.60*outlet_vol)/sim_block.pebble_volume) +
                     np.floor((sim_block.pf*main_vol)/sim_block.pebble_volume))
     print("Equivalent number of pebbles is "+str(n_pebbles))
 
@@ -71,13 +71,13 @@ def fill_core(input_file, rough_pf):
     write_lammps_dump_file(rough_pack, "rough-pack.txt", "ff ff ff",
                            x_b, y_b, z_b)
 
-    variable_filename = "pour_variables.txt"
-    write_variable_block(variable_filename, input_block, sim_block)
+    variable_file = "pour_variables.txt"
+    write_variable_block(variable_file, input_block, sim_block)
 
     reg_files, reg_names = write_region_blocks(pack_zones)
 
-    pour_filename = "pour_main_input.txt"
-    write_pour_main(pour_filename, sim_block, variable_filename, x_b, y_b, z_b,
+    pour_file = "pour_main_input.txt"
+    write_pour_main(pour_file, sim_block, variable_file, x_b, y_b, z_b,
                     reg_files, reg_names, pebbles_left)
 
 
@@ -107,8 +107,8 @@ def pack_cyl(sim_block, element, rough_pf):
     sides = openmc.ZCylinder(x0=element.x_c,
                              y0=element.y_c,
                              r=element.r)
-    top = openmc.ZPlane(z0=element.z_max)
-    bottom = openmc.ZPlane(z0=element.z_min)
+    top = openmc.ZPlane(z0=element.zmax)
+    bottom = openmc.ZPlane(z0=element.zmin)
     region_bounds = -sides & -top & +bottom
 
     coords = openmc.model.pack_spheres(sim_block.r_pebble,
@@ -148,45 +148,45 @@ def find_box_bounds(sim_block, pour=False):
         As x_b but for the z-direction.
     '''
 
-    core_list = (sim_block.core_intake |
+    core_list = (sim_block.core_inlet |
                  sim_block.core_main |
-                 sim_block.core_outtake)
+                 sim_block.core_outlet)
     x_list = []
     y_list = []
     z_list = []
     for element in core_list.values():
-        z_list += [element.z_min, element.z_max]
+        z_list += [element.zmin, element.zmax]
         if type(element) == ghastly.core.CylCore:
             x_list += [(element.x_c - element.r),
                        (element.x_c + element.r)]
             y_list += [(element.y_c - element.r),
                        (element.y_c + element.r)]
         elif type(element) == ghastly.core.ConeCore:
-            x_list += [(element.x_c - element.r_upper),
-                       (element.x_c + element.r_upper),
-                       (element.x_c - element.r_lower),
-                       (element.x_c + element.r_lower)]
-            y_list += [(element.y_c - element.r_upper),
-                       (element.y_c + element.r_upper),
-                       (element.y_c - element.r_lower),
-                       (element.y_c + element.r_lower)]
+            x_list += [(element.x_c - element.r_major),
+                       (element.x_c + element.r_major),
+                       (element.x_c - element.r_minor),
+                       (element.x_c + element.r_minor)]
+            y_list += [(element.y_c - element.r_major),
+                       (element.y_c + element.r_major),
+                       (element.y_c - element.r_minor),
+                       (element.y_c + element.r_minor)]
     f = 5.0
     match pour:
         case True:
             f_zup = 10.0
         case _:
             f_zup = 5.0
-    x_b = {"low": (min(x_list) - f*sim_block.r_pebble),
-           "up": (max(x_list) + f*sim_block.r_pebble)}
-    y_b = {"low": (min(y_list) - f*sim_block.r_pebble),
-           "up": (max(y_list) + f*sim_block.r_pebble)}
-    z_b = {"low": (min(z_list) - f*sim_block.r_pebble),
-           "up": (max(z_list) + f_zup*sim_block.r_pebble)}
+    x_b = {"min": (min(x_list) - f*sim_block.r_pebble),
+           "max": (max(x_list) + f*sim_block.r_pebble)}
+    y_b = {"min": (min(y_list) - f*sim_block.r_pebble),
+           "max": (max(y_list) + f*sim_block.r_pebble)}
+    z_b = {"min": (min(z_list) - f*sim_block.r_pebble),
+           "max": (max(z_list) + f_zup*sim_block.r_pebble)}
 
     return x_b, y_b, z_b
 
 
-def write_lammps_dump_file(coords, dump_filename, bound_conds,
+def write_lammps_dump_file(coords, dump_file, bound_conds,
                            x_b, y_b, z_b):
     '''
     Using the coordinate array and simulation boundary conditions and
@@ -197,7 +197,7 @@ def write_lammps_dump_file(coords, dump_filename, bound_conds,
     ----------
     coords : list
         List of pebble centroid coordinates.
-    dump_filename : str
+    dump_file : str
         Desired name of LAMMPS dumpfile created.  Please see LAMMPS read dump
         documentation for a full list of acceptable dump file types.
     bound_conds : str
@@ -214,8 +214,8 @@ def write_lammps_dump_file(coords, dump_filename, bound_conds,
 
     Returns
     -------
-    dump_filename : file
-        Generated file with the same name as dump_filename.
+    dump_file : file
+        Generated file with the same name as dump_file.
     '''
 
     pebble_coords = [{"id": i, "x": v[0], "y": v[1], "z": v[2]}
@@ -229,19 +229,19 @@ def write_lammps_dump_file(coords, dump_filename, bound_conds,
                                      z_b=z_b,
                                      peb_list=pebble_coords)
 
-    with open(dump_filename, mode='w') as f:
+    with open(dump_file, mode='w') as f:
         f.write(dump_text)
     return dump_text
 
 
-def write_variable_block(variable_filename, input_block, sim_block):
+def write_variable_block(variable_file, input_block, sim_block):
     '''
     Create the file containing LAMMPS variables, which can later be included
     in a main LAMMPS input.
 
     Parameters
     ----------
-    variable_filename : str
+    variable_file : str
         The name of the variable block file to be created.
     input_block : Ghastly InputBlock object
         Ghastly object made from reading a Ghastly input file.
@@ -250,8 +250,8 @@ def write_variable_block(variable_filename, input_block, sim_block):
 
     Returns
     -------
-    variable_filename : file
-        Generated file with the same name as variable_filename.
+    variable_file : file
+        Generated file with the same name as variable_file.
     '''
 
     variables = input_block.lammps_var
@@ -263,7 +263,7 @@ def write_variable_block(variable_filename, input_block, sim_block):
 
     variables_template = env.get_template("variable_template.txt")
     variable_text = variables_template.render(variables=variables)
-    with open(variable_filename, mode='w') as f:
+    with open(variable_file, mode='w') as f:
         f.write(variable_text)
     return variable_text
 
@@ -283,7 +283,7 @@ def write_region_blocks(core_zones):
     Returns
     -------
     reg_files : list
-        List of the filenames for each region block generated.
+        List of the files for each region block generated.
     reg_names : list
         List of the element names for each region block generated, which is
         used as the region's name in LAMMPS.
@@ -299,28 +299,28 @@ def write_region_blocks(core_zones):
                                            x_c=element.x_c,
                                            y_c=element.y_c,
                                            r=element.r,
-                                           z_min=element.z_min,
-                                           z_max=element.z_max,
+                                           zmin=element.zmin,
+                                           zmax=element.zmax,
                                            open_bottom=element.open_bottom,
                                            open_top=element.open_top)
-            reg_filename = str(element_name)+"_region.txt"
-            reg_files.append(reg_filename)
-            with open(reg_filename, mode='w') as f:
+            reg_file = str(element_name)+"_region.txt"
+            reg_files.append(reg_file)
+            with open(reg_file, mode='w') as f:
                 f.write(reg_text)
         elif type(element) == ghastly.core.ConeCore:
             reg_template = env.get_template("conecore_template.txt")
             reg_text = reg_template.render(region_name=element_name,
                                            x_c=element.x_c,
                                            y_c=element.y_c,
-                                           r_lower=element.r_lower,
-                                           r_upper=element.r_upper,
-                                           z_min=element.z_min,
-                                           z_max=element.z_max,
+                                           r_minor=element.r_minor,
+                                           r_major=element.r_major,
+                                           zmin=element.zmin,
+                                           zmax=element.zmax,
                                            open_bottom=element.open_bottom,
                                            open_top=element.open_top)
-            reg_filename = str(element_name)+"_region.txt"
-            reg_files.append(reg_filename)
-            with open(reg_filename, mode='w') as f:
+            reg_file = str(element_name)+"_region.txt"
+            reg_files.append(reg_file)
+            with open(reg_file, mode='w') as f:
                 f.write(reg_text)
 
         else:
@@ -328,15 +328,15 @@ def write_region_blocks(core_zones):
     return reg_files, reg_names
 
 
-def write_settle_block(settle_filename, sim_block, reg_files, reg_names):
+def write_settle_block(settle_file, sim_block, reg_files, reg_names):
     '''
-    Write lammps code block that adds the outtake region to the simulation
+    Write lammps code block that adds the outlet region to the simulation
     and reverses gravity, allowing pebbles to settle upwards after pouring
     for upwards flowing systems.
 
     Parameters
     ----------
-    settle_filename : str
+    settle_file : str
         Name of the LAMMPS input file that will be created.
     sim_block : Ghastly Sim object
         Ghastly Sim object containing simulation-specific parameters.
@@ -350,11 +350,11 @@ def write_settle_block(settle_filename, sim_block, reg_files, reg_names):
 
     Returns
     -------
-    settle_filename : file
-        Generated file with the same name as settle_filename.
+    settle_file : file
+        Generated file with the same name as settle_file.
     '''
 
-    out_reg_files, out_reg_names = write_region_blocks(sim_block.core_outtake)
+    out_reg_files, out_reg_names = write_region_blocks(sim_block.core_outlet)
     out_reg_names += reg_names
 
     settle_template = env.get_template("settle_template.txt")
@@ -362,23 +362,23 @@ def write_settle_block(settle_filename, sim_block, reg_files, reg_names):
                                          n_regions=len(out_reg_names),
                                          region_names=out_reg_names)
 
-    with open(settle_filename, mode='w') as f:
+    with open(settle_file, mode='w') as f:
         f.write(settle_text)
     return settle_text
 
 
-def write_pour_main(pour_filename, sim_block, variable_filename, x_b, y_b, z_b,
+def write_pour_main(pour_file, sim_block, variable_file, x_b, y_b, z_b,
                     reg_files, reg_names, pebbles_left):
     '''
     Create the main LAMMPS file for pouring pebbles into the core.
 
     Parameters
     ----------
-    pour_filename : str
+    pour_file : str
         Name of the main pour file to be created.
     sim_block : Ghastly Sim object
         Sim class object with simulation-specific parameters.
-    variable_filename : str
+    variable_file : str
         Name of the file containing the LAMMPS variable block
     x_b : dict
         Dictionary with key: value pairs giving the upper and lower
@@ -386,9 +386,9 @@ def write_pour_main(pour_filename, sim_block, variable_filename, x_b, y_b, z_b,
     y_b : dict
         As x_b, but for the y-direction.
     z_b : dict
-        as x_b but for the z-direction.
+        As x_b but for the z-direction.
     reg_files : list
-        A list of the filenames for the region blocks in LAMMPS.
+        A list of the files for the region blocks in LAMMPS.
     reg_names : list
         A list of the names of the regions used in LAMMPS.
     pebbles_left : int
@@ -396,23 +396,23 @@ def write_pour_main(pour_filename, sim_block, variable_filename, x_b, y_b, z_b,
 
     Returns
     -------
-    pour_filename : file
-        Generated file with the same name as pour_filename.
+    pour_file : file
+        Generated file with the same name as pour_file.
     '''
 
-    main_core_z_max = max([(key, element.z_max)
+    main_core_zmax = max([(key, element.zmax)
                            for key, element in sim_block.core_main.items()])
-    main_intake = sim_block.core_main[main_core_z_max[0]]
+    main_inlet = sim_block.core_main[main_core_zmax[0]]
 
-    x_c_pour = main_intake.x_c
-    y_c_pour = main_intake.y_c
-    z_max_pour = z_b["up"] - 0.01
-    z_min_pour = main_core_z_max[1] + 0.01
+    x_c_pour = main_inlet.x_c
+    y_c_pour = main_inlet.y_c
+    zmax_pour = z_b["max"] - 0.01
+    zmin_pour = main_core_zmax[1] + 0.01
 
-    if type(main_intake) == ghastly.core.CylCore:
-        r_pour = 0.75*main_intake.r
-    elif type(main_intake) == ghastly.core.ConeCore:
-        r_pour = 0.75*main_intake.r_upper
+    if type(main_inlet) == ghastly.core.CylCore:
+        r_pour = 0.75*main_inlet.r
+    elif type(main_inlet) == ghastly.core.ConeCore:
+        r_pour = 0.75*main_inlet.r_major
 
     match sim_block.down_flow:
         case True:
@@ -422,7 +422,7 @@ def write_pour_main(pour_filename, sim_block, variable_filename, x_b, y_b, z_b,
             settle = "include           settle.txt"
 
     main_template = env.get_template("pour_main.txt")
-    main_text = main_template.render(variable_filename=variable_filename,
+    main_text = main_template.render(variable_file=variable_file,
                                      x_b=x_b,
                                      y_b=y_b,
                                      z_b=z_b,
@@ -432,20 +432,20 @@ def write_pour_main(pour_filename, sim_block, variable_filename, x_b, y_b, z_b,
                                      x_c_pour=x_c_pour,
                                      y_c_pour=y_c_pour,
                                      r_pour=r_pour,
-                                     z_min_pour=z_min_pour,
-                                     z_max_pour=z_max_pour,
+                                     zmin_pour=zmin_pour,
+                                     zmax_pour=zmax_pour,
                                      pebbles_left=pebbles_left,
                                      settle=settle)
 
-    pour_filename = "pour_main_input.txt"
-    with open(pour_filename, mode='w') as f:
+    pour_file = "pour_main_input.txt"
+    with open(pour_file, mode='w') as f:
         f.write(main_text)
     return main_text
 
 
-def recirc_pebbles(input_file, init_bed_fname,
-                   recirc_fname, recirc_temp, 
-                   var_fname="recirc_var.txt"):
+def recirc_pebbles(input_file, init_bed_file,
+                   recirc_file, recirc_template, 
+                   var_file="recirc_var.txt"):
     '''
     Reads Ghastly input_file in order to generate a LAMMPS input file
     that will recirculate pebbles at the desired level of fidelity
@@ -455,21 +455,21 @@ def recirc_pebbles(input_file, init_bed_fname,
     input_file : str
         Path to input_file to be used, containing user-defined parameters for
         a Ghastly recirculation simulation
-    init_bed_fname : str
+    init_bed_file : str
         Path to the LAMMPS dump file that contains the
         id, type, and x y z centroid coordinates of each pebble in the
         initial pebble bed, which should be settled, and filled to the desired
         packing fraction.  Note that the write_lammps_dump_file function can
         be used to generate an appropriately-formatted LAMMPS dump file from
         an numpy array of pebble centroid coordinates.
-    recirc_fname : str
-        File name for the recirculating LAMMPS input file that
+    recirc_file : str
+        Filename for the recirculating LAMMPS input file that
         Ghastly generates.
-    recirc_temp : str
-        File name of the main recirculation template.  Note that
+    recirc_template : str
+        Filename of the main recirculation template.  Note that
         custom templates should be located in the ghastly/templates/
         directory.
-    var_fname : str
+    var_file : str
         Optional. File name for LAMMPS variable block file generated by
         Ghastly.
 
@@ -484,45 +484,45 @@ def recirc_pebbles(input_file, init_bed_fname,
 
     x_b, y_b, z_b = find_box_bounds(sim_block)
 
-    write_variable_block(var_fname, input_block, sim_block)
+    write_variable_block(var_file, input_block, sim_block)
 
-    active_core = (sim_block.core_intake |
+    active_core = (sim_block.core_inlet |
                    sim_block.core_main |
-                   sim_block.core_outtake)
+                   sim_block.core_outlet)
 
-    act_reg_fnames, act_reg_names = write_region_blocks(active_core)
+    act_reg_files, act_reg_names = write_region_blocks(active_core)
 
     main_cyl = {key: value for key, value in sim_block.core_main.items() if
                 'cyl' in key}
-    out_cyl = {key: value for key, value in sim_block.core_outtake.items() if
+    out_cyl = {key: value for key, value in sim_block.core_outlet.items() if
                'cyl' in key}
     _, out_params = out_cyl.popitem()
     r_chute = out_params.r
-    v_reg_fname = "v_regs.txt"
+    v_reg_file = "v_regs.txt"
     v_reg_name = "v_reg"
-    write_v_regs(main_cyl, r_chute, v_reg_fname, v_reg_name)
+    write_v_regs(main_cyl, r_chute, v_reg_file, v_reg_name)
 
     if sim_block.fidelity == 1:
-        write_recircf1_main(recirc_fname, recirc_temp, var_fname,
-                            act_reg_fnames, act_reg_names,
-                            v_reg_fname, v_reg_name,
-                            init_bed_fname, sim_block, x_b, y_b, z_b)
+        write_recircf1_main(recirc_file, recirc_template, var_file,
+                            act_reg_files, act_reg_names,
+                            v_reg_file, v_reg_name,
+                            init_bed_file, sim_block, x_b, y_b, z_b)
     elif sim_block.fidelity == 2:
         outlet_zone = {key: value for key, value in
                        sim_block.recirc.items() if 'out' in key}
-        outlet_fname = 'f2-recirc-zone.txt'
+        outlet_file = 'f2-recirc-zone.txt'
         outlet_name = list(outlet_zone.keys())[0]
-        write_recircf2_regs(outlet_zone, outlet_fname)
+        write_recircf2_regs(outlet_zone, outlet_file)
 
-        write_recircf2_main(recirc_fname, recirc_temp, var_fname,
-                            act_reg_fnames, act_reg_names,
-                            v_reg_fname, v_reg_name,
-                            outlet_fname, outlet_name,
-                            init_bed_fname, sim_block, x_b, y_b, z_b)
+        write_recircf2_main(recirc_file, recirc_template, var_file,
+                            act_reg_files, act_reg_names,
+                            v_reg_file, v_reg_name,
+                            outlet_file, outlet_name,
+                            init_bed_file, sim_block, x_b, y_b, z_b)
     return sim_block
 
 
-def write_recircf2_regs(outlet_zone, outlet_fname):
+def write_recircf2_regs(outlet_zone, outlet_file):
     '''
     Writes file for the recirculation region used to select which pebbles
     should be recirculated each loop in LAMMPS.  This region is non-physical.
@@ -534,12 +534,12 @@ def write_recircf2_regs(outlet_zone, outlet_fname):
         name of the recirculation outlet zone and
         the value is the Ghastly Core object that defines
         this region.
-    outlet_fname : str
+    outlet_file : str
         file name of the recirculation outlet zone region block.
 
     Returns
     ----------
-    This function has no return, but does generate a file named outlet_fname.
+    This function has no return, but does generate a file named outlet_file.
     '''
 
     outlet_template = env.get_template("recircf2_outlet_template.txt")
@@ -548,14 +548,14 @@ def write_recircf2_regs(outlet_zone, outlet_fname):
                                          x_c=param.x_c,
                                          y_c=param.y_c,
                                          r=param.r,
-                                         z_min=param.z_min,
-                                         z_max=param.z_max)
-    with open(outlet_fname, mode='w') as f:
+                                         zmin=param.zmin,
+                                         zmax=param.zmax)
+    with open(outlet_file, mode='w') as f:
         f.write(outlet_text)
     return outlet_text
 
 
-def write_v_regs(main_cyl, r_chute, v_reg_fname, v_reg_name):
+def write_v_regs(main_cyl, r_chute, v_reg_file, v_reg_name):
     '''
     Writes a file containing region blocks used for dumping velocity
     information by-region in the main core.  These are non-physical regions.
@@ -569,8 +569,8 @@ def write_v_regs(main_cyl, r_chute, v_reg_fname, v_reg_name):
     r_chute : float
         the radius of the chute, in units matching the distance units used in
         LAMMPS (by default, Ghastly uses SI units, which uses meters).
-    v_reg_fname: str
-        File name of the velocity region input block file that this function
+    v_reg_file: str
+        Filename of the velocity region input block file that this function
         generates.
     v_reg_name : str
         Base region name for the velocity regions.  As there are multiple
@@ -579,7 +579,7 @@ def write_v_regs(main_cyl, r_chute, v_reg_fname, v_reg_name):
 
     Returns
     ----------
-    This function has no returns, but does generate a file named v_reg_fname.
+    This function has no returns, but does generate a file named v_reg_file.
     '''
     v_reg_template = env.get_template("velreg_template.txt")
     _, param = main_cyl.popitem()
@@ -588,46 +588,46 @@ def write_v_regs(main_cyl, r_chute, v_reg_fname, v_reg_name):
                                        x_c=param.x_c,
                                        y_c=param.y_c,
                                        r_chute=r_chute,
-                                       z_min=param.z_min,
-                                       z_max=param.z_max)
-    with open(v_reg_fname, mode='w') as f:
+                                       zmin=param.zmin,
+                                       zmax=param.zmax)
+    with open(v_reg_file, mode='w') as f:
         f.write(v_reg_text)
     return v_reg_text
 
 
-def write_recircf2_main(recirc_fname, recirc_temp, var_fname,
-                        act_reg_fnames, act_reg_names,
-                        v_reg_fname, v_reg_name,
-                        outlet_fname, outlet_name,
-                        init_bed_fname, sim_block, x_b, y_b, z_b):
+def write_recircf2_main(recirc_file, recirc_template, var_file,
+                        act_reg_files, act_reg_names,
+                        v_reg_file, v_reg_name,
+                        outlet_file, outlet_name,
+                        init_bed_file, sim_block, x_b, y_b, z_b):
     '''
     Uses the main F2 template and the files containing smaller blocks of the
     LAMMPS model to create the main F2 recirculation file.
 
     Parameters
     ----------
-    recirc_fname : str
+    recirc_file : str
         Name of generated LAMMPS input file.
-    recirc_temp : str
+    recirc_template : str
         Filename of the F2 recirculation template to be used.
-    var_fname : str
+    var_file : str
         Filename of a previously-generated variable block.
-    act_reg_fnames : list of str
-        List of previously-generated filenames for the region blocks defining
+    act_reg_files : list of str
+        List of previously-generated files for the region blocks defining
         the physical bounds of the active core.
     act_reg_names : list of str
         List of the name of each region that defines the active core.  Must
-        match names of regions in the act_reg_fnames.
-    v_reg_fname : str
+        match names of regions in the act_reg_files.
+    v_reg_file : str
         Filename of a previously-generated velocity regions file.
     v_reg_name : str
         Base name of the velocity regions.
-    outlet_fname : str
+    outlet_file : str
         Filename of a previously-generated region block that defines the
         zone that pebbles are pulled from when recirculating.
     outlet_name : str
-        Name of the outlet recirculation region defined in outlet_fname.
-    init_bed_fname : str
+        Name of the outlet recirculation region defined in outlet_file.
+    init_bed_file : str
         Filename of LAMMPS dump file containing pebble bed starting positions.
     sim_block : Ghastly Sim object
         Sim object holding simulation-wide parameters for the current problem.
@@ -637,52 +637,52 @@ def write_recircf2_main(recirc_fname, recirc_temp, var_fname,
 
     Returns
     ----------
-    This function has no returns, but does output a file named recirc_fname.
+    This function has no returns, but does output a file named recirc_file.
     '''
 
-    main_template = env.get_template(recirc_temp)
-    main_text = main_template.render(variable_filename=var_fname,
+    main_template = env.get_template(recirc_template)
+    main_text = main_template.render(variable_file=var_file,
                                      x_b=x_b, y_b=y_b, z_b=z_b,
-                                     region_files=act_reg_fnames,
-                                     n_regions=len(act_reg_fnames),
+                                     region_files=act_reg_files,
+                                     n_regions=len(act_reg_files),
                                      region_names=act_reg_names,
-                                     v_reg_fname=v_reg_fname,
+                                     v_reg_file=v_reg_file,
                                      v_reg_name=v_reg_name,
-                                     starting_bed=init_bed_fname,
-                                     outlet_fname=outlet_fname,
+                                     starting_bed=init_bed_file,
+                                     outlet_file=outlet_file,
                                      outlet_name=outlet_name)
 
-    with open(recirc_fname, mode='w') as f:
+    with open(recirc_file, mode='w') as f:
         f.write(main_text)
     return main_text
 
 
-def write_recircf1_main(recirc_fname, recirc_temp, var_fname,
-                        act_reg_fnames, act_reg_names,
-                        v_reg_fname, v_reg_name,
-                        init_bed_fname, sim_block, x_b, y_b, z_b):
+def write_recircf1_main(recirc_file, recirc_template, var_file,
+                        act_reg_files, act_reg_names,
+                        v_reg_file, v_reg_name,
+                        init_bed_file, sim_block, x_b, y_b, z_b):
     '''
     write recirc main file for LAMMPS
 
     Parameters
     ----------
-    recirc_fname : str
+    recirc_file : str
         Name of generated LAMMPS input file.
-    recirc_temp : str
+    recirc_template : str
         Filename of the F2 recirculation template to be used.
-    var_fname : str
+    var_file : str
         Filename of a previously-generated variable block.
-    act_reg_fnames : list of str
+    act_reg_files : list of str
         List of previously-generated filenames for the region blocks defining
         the physical bounds of the active core.
     act_reg_names : list of str
         List of the name of each region that defines the active core.  Must
-        match names of regions in the act_reg_fnames.
-    v_reg_fname : str
+        match names of regions in the act_reg_files.
+    v_reg_file : str
         Filename of a previously-generated velocity regions file.
     v_reg_name : str
         Base name of the velocity regions.
-    init_bed_fname : str
+    init_bed_file : str
         Filename of LAMMPS dump file containing pebble bed starting positions.
     sim_block : Ghastly Sim object
         Sim object holding simulation-wide parameters for the current problem.
@@ -692,20 +692,20 @@ def write_recircf1_main(recirc_fname, recirc_temp, var_fname,
 
     Returns
     ----------
-    This function has no returns, but does output a file named recirc_fname.
+    This function has no returns, but does output a file named recirc_file.
 
     '''
 
-    main_template = env.get_template(recirc_temp)
-    main_text = main_template.render(variable_filename=var_fname,
+    main_template = env.get_template(recirc_template)
+    main_text = main_template.render(variable_file=var_file,
                                      x_b=x_b, y_b=y_b, z_b=z_b,
-                                     region_files=act_reg_fnames,
-                                     n_regions=len(act_reg_fnames),
+                                     region_files=act_reg_files,
+                                     n_regions=len(act_reg_files),
                                      region_names=act_reg_names,
-                                     v_reg_fname=v_reg_fname,
+                                     v_reg_file=v_reg_file,
                                      v_reg_name=v_reg_name,
-                                     starting_bed=init_bed_fname)
+                                     starting_bed=init_bed_file)
 
-    with open(recirc_fname, mode='w') as f:
+    with open(recirc_file, mode='w') as f:
         f.write(main_text)
     return main_text
