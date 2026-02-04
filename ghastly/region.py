@@ -6,8 +6,8 @@ class Region:
     Parent class for Region objects.
     '''
 
-    def __init__(self, x_c, y_c, z_max, z_min, reg_id,
-                 intake, outtake, start=False, end=False):
+    def __init__(self, x_c, y_c, zmax, zmin, reg_id,
+                 inlet, outlet, start=False, end=False):
         '''
         Initializes a single instance of a Region object.  All dimensions are
         in meters. This does not define a specific geometry, and should not be
@@ -19,18 +19,18 @@ class Region:
             Coordinate of the cylinder's center on the x-axis [m].
         y_c : float
             Coordinate of the cylinder's center on the y-axis [m].
-        z_max : float
+        zmax : float
             Z-coordinate of the cylinder's top [m].
-        z_min : float
+        zmin : float
             Z-coordinate of the cylinder's bottom [m].
         reg_id : str
             Unique ID for this region.
-        intake : list
+        inlet : list
             List of Region IDs that feed into this region.  A region may have
-            more than one intake.
-        outtake : str
+            more than one inlet.
+        outlet : str
             Region ID for the region that this one feeds into.  A region may only
-            have one outtake.
+            have one outlet.
         start : bool
             True if this region is part of the "start" of a pebble's
             path in the core - for example, if it is in the top of an HTGR -
@@ -41,12 +41,12 @@ class Region:
         '''
         self.x_c = x_c
         self.y_c = y_c
-        self.z_max = z_max
-        self.z_min = z_min
-        self.h = abs(z_min) + abs(z_max)
+        self.zmax = zmax
+        self.zmin = zmin
+        self.h = abs(zmin) + abs(zmax)
         self.reg_id = reg_id
-        self.intake = intake
-        self.outtake = outtake
+        self.inlet = inlet
+        self.outlet = outlet
         self.start = start
         self.end = end
 
@@ -109,22 +109,22 @@ class ConeReg(Region):
     Class for a region in the shape of a truncated right cone.
     '''
 
-    def __init__(self, r_upper, r_lower, *args, **kwargs):
+    def __init__(self, r_major, r_minor, *args, **kwargs):
         '''
         Initializes a ConeReg object.  All dimensions should be in meters.
 
         Parameters
         ----------
-        r_upper : float
+        r_major : float
             Radius at the top of the cone [m].
-        r_lower : float
+        r_minor : float
             Radius at the bottom of the cone [m].
         '''
         super().__init__(*args, **kwargs)
-        self.r_upper = r_upper
-        self.r_lower = r_lower
+        self.r_major = r_major
+        self.r_minor = r_minor
         self.volume = ((1 / 3) * np.pi * self.h
-                       * (r_upper**2 + r_lower**2 + r_upper * r_lower))
+                       * (r_major**2 + r_minor**2 + r_major * r_minor))
 
 
 class AnnConeReg(Region):
@@ -149,10 +149,10 @@ class AnnConeReg(Region):
             Inner radius at the bottom of the region [m].
         '''
         super().__init__(*args, **kwargs)
-        self.r_out_up = r_out_up
-        self.r_in_up = r_in_up
-        self.r_out_low = r_out_low
-        self.r_in_low = r_in_low
+        self.r_out_major = r_out_major
+        self.r_in_major = r_in_major
+        self.r_out_minor = r_out_minor
+        self.r_in_minor = r_in_minor
         self.volume = ((1 / 3) * np.pi * self.h * (
-            (r_out_up**2 + r_out_low**2 + r_out_up * r_out_low)
-            - (r_in_up**2 + r_in_low**2 + r_in_up * r_in_low)))
+            (r_out_major**2 + r_out_minor**2 + r_out_major * r_out_minor)
+            - (r_in_major**2 + r_in_minor**2 + r_in_major * r_in_minor)))

@@ -32,9 +32,9 @@ class InputBlock:
         params = json.load(f)
 
         self.sim_var = params["simulation"]
-        self.core_intake_var = params["core_intake"]
+        self.core_inlet_var = params["core_inlet"]
         self.core_main_var = params["core_main"]
-        self.core_outtake_var = params["core_outtake"]
+        self.core_outlet_var = params["core_outlet"]
         if "recirc" in params:
             self.recirc_var = params["recirc"]
         else:
@@ -54,17 +54,17 @@ class InputBlock:
 
         '''
 
-        core_intake = self.create_core_zone(self.core_intake_var)
+        core_inlet = self.create_core_zone(self.core_inlet_var)
         core_main = self.create_core_zone(self.core_main_var)
-        core_outtake = self.create_core_zone(self.core_outtake_var)
+        core_outlet = self.create_core_zone(self.core_outlet_var)
 
-        sim_block = self.create_sim_block(core_intake, core_main, core_outtake)
+        sim_block = self.create_sim_block(core_inlet, core_main, core_outlet)
 
         return sim_block
 
     def create_core_zone(self, core_zone):
         '''
-        Given a specific core_zone, such as intake, main, or outtake, create
+        Given a specific core_zone, such as inlet, main, or outlet, create
         a dictionary with key:value pairs where each key is the name of a
         core element, and each value is the corresponding ghastly Core class
         object.
@@ -90,8 +90,8 @@ class InputBlock:
             if val["type"].casefold() == "cylinder":
                 core_block[key] = core.CylCore(x_c=val["x_c"],
                                                y_c=val["y_c"],
-                                               z_max=val["z_max"],
-                                               z_min=val["z_min"],
+                                               zmax=val["zmax"],
+                                               zmin=val["zmin"],
                                                r=val["r"],
                                                open_bottom=val["open_bottom"],
                                                open_top=val["open_top"])
@@ -99,10 +99,10 @@ class InputBlock:
             elif val["type"].casefold() == "cone":
                 core_block[key] = core.ConeCore(x_c=val["x_c"],
                                                 y_c=val["y_c"],
-                                                z_max=val["z_max"],
-                                                z_min=val["z_min"],
-                                                r_upper=val["r_upper"],
-                                                r_lower=val["r_lower"],
+                                                zmax=val["zmax"],
+                                                zmin=val["zmin"],
+                                                r_major=val["r_major"],
+                                                r_minor=val["r_minor"],
                                                 open_bottom=val["open_bottom"],
                                                 open_top=val["open_top"])
             else:
@@ -139,25 +139,25 @@ class InputBlock:
             if val["type"].casefold() == "cylinder":
                 recirc_block[key] = core.CylCore(x_c=val["x_c"],
                                                  y_c=val["y_c"],
-                                                 z_max=val["z_max"],
-                                                 z_min=val["z_min"],
+                                                 zmax=val["zmax"],
+                                                 zmin=val["zmin"],
                                                  r=val["r"])
 
             elif val["type"].casefold() == "cone":
                 recirc_block[key] = core.ConeCore(x_c=val["x_c"],
                                                   y_c=val["y_c"],
-                                                  z_max=val["z_max"],
-                                                  z_min=val["z_min"],
-                                                  r_upper=val["r_upper"],
-                                                  r_lower=val["r_lower"])
+                                                  zmax=val["zmax"],
+                                                  zmin=val["zmin"],
+                                                  r_major=val["r_major"],
+                                                  r_minor=val["r_minor"])
             else:
                 raise NameError("Type must be cylinder or cone.")
 
         return recirc_block
 
-    def create_sim_block(self, core_intake, core_main, core_outtake):
+    def create_sim_block(self, core_inlet, core_main, core_outlet):
         '''
-        Creates a Sim object, using the intake, main, and outtake core zone
+        Creates a Sim object, using the inlet, main, and outlet core zone
         dictionaries.  Default values for k_rate, down_flow, and seed are
         0.001, True, and a random integer between 1,000,000 and 100,000,000,
         respectively.
@@ -213,9 +213,9 @@ class InputBlock:
                                    fidelity=fidelity,
                                    recirc_target=recirc_target,
                                    recirc_hz=recirc_hz,
-                                   core_intake=core_intake,
+                                   core_inlet=core_inlet,
                                    core_main=core_main,
-                                   core_outtake=core_outtake,
+                                   core_outlet=core_outlet,
                                    recirc=recirc,
                                    k_rate=k_rate,
                                    down_flow=down_flow,
@@ -223,7 +223,7 @@ class InputBlock:
         return sim_block
 
 
-def read_lammps_bin(bin_fname, bin_dir, 
+def read_lammps_bin(bin_file, bin_dir, 
                     delimiter = ' ', skiprows = 9, max_rows=None):
     '''
     Given a LAMMPS binary file, convert it to .txt and return a numpy array.
@@ -233,7 +233,7 @@ def read_lammps_bin(bin_fname, bin_dir,
 
     Parameters
     ----------
-    bin_fname : str
+    bin_file : str
         String of the absolute path to a LAMMPS binary file.
     bin_dir : str
         String of the absolute path to the binary file directory
@@ -252,7 +252,7 @@ def read_lammps_bin(bin_fname, bin_dir,
         of the binary file.
     '''
 
-    subprocess.run(['binary2txt', bin_fname], stdout=subprocess.DEVNULL)
+    subprocess.run(['binary2txt', bin_file], stdout=subprocess.DEVNULL)
     txtfile = glob.glob(path.join(bin_dir, "*.txt"))[0]
     data = (np.loadtxt(txtfile, delimiter=delimiter, 
                        skiprows=skiprows, max_rows=max_rows))
