@@ -1,0 +1,3 @@
+region		{{params.name}} cylinder z {{params.x_c}} {{params.y_c}} {{params.r}} &
+		{{params.zmin}} {{params.zmax}} side in units box &
+		{{params.open_bottom}} {{params.open_top}}
