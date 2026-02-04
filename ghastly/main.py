@@ -709,3 +709,17 @@ def write_recircf1_main(recirc_file, recirc_template, var_file,
     with open(recirc_file, mode='w') as f:
         f.write(main_text)
     return main_text
+
+def _templater(params, template_name, file):
+    '''
+    given text dict and template file name, create file
+    '''
+    
+    template = env.get_template(template_name)
+    text = template.render(params = params)
+    with open(file, mode='w') as f:
+        f.write(text)
+    return text
+    
+
+
