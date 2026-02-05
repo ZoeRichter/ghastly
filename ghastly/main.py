@@ -65,7 +65,7 @@ def fill_core_lmp(input_file, rough_pf,
             pack_zones = sim_block.core_main | sim_block.core_inlet
 
     for element in pack_zones.values():
-        coords = _pack_cyl(sim_block, element, rough_pf, crp, openmc)
+        coords = _pack_core(sim_block, element, rough_pf, crp, openmc)
         rough_pack += coords
 
     outlet_vol = sum([i.volume for i in sim_block.core_outlet.values()])
@@ -106,7 +106,7 @@ def fill_core_lmp(input_file, rough_pf,
     _templater(params, fillmain_file, fillmain_template)
 
 
-def _pack_cyl(sim_block, element, rough_pf, crp, openmc):
+def _pack_core(sim_block, element, rough_pf, crp, openmc):
     '''
     Generates coords for a rough-pack of the given core element.  The default
     behavior is to generate a series of points assuming a simple cubic lattice.
@@ -173,9 +173,9 @@ def _pack_cyl(sim_block, element, rough_pf, crp, openmc):
                                      - (r_sph/m)*(m**2+1)**0.5 
                                      - (center[2] - element.h/2)/m)]}
 
-        nx = (2*r)/r_sph
-        ny = (2*r)/r_sph
-        nz = element.h/r_sph
+        nx = int((2*r)/r_sph)
+        ny = int((2*r)/r_sph)
+        nz = int(element.h/r_sph)
         x = np.linspace(element.x_c - r, element.x_c + r, nx)
         y = np.linspace(element.y_c - r, element.y_c + r, ny)
         z = np.linspace(element.zmin, element.zmax, nz)
@@ -328,7 +328,7 @@ def recirc_pebbles(input_file, init_bed_file, recirc_file, recirc_template,
               'starting_bed' : init_bed_file,
               'siminit_file' : siminit_file} | bound_limits
 
-    elif sim_block.fidelity == 2:
+    if sim_block.fidelity == 2:
         _write_f2outlet(sim_block, f2outlet_file, f2outlet_template)
         params['f2outlet_file'] = f2outlet_file
 
