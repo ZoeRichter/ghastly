@@ -351,9 +351,9 @@ def write_lammps_dump_file(coords, bound_conds, bound_limits, dump_file,
     pebble_coords = [{"id": i, "x": v[0], "y": v[1], "z": v[2]}
                      for i, v in enumerate(coords)]
     params = {'timestep' : timestep,
-              'boundary' = bound_conds,
-              'coords' = pebble_coords
-              'n_pebbles' = len(coords)} | bound_limits
+              'boundary' : bound_conds,
+              'coords' : pebble_coords,
+              'n_pebbles' : len(coords)} | bound_limits
     _templater(params, dump_template, dump_file)
 
     return
@@ -750,10 +750,13 @@ def _templater(params, template_name, file):
     '''
     
     template = env.get_template(template_name)
-    text = template.render(params = params)
+    text = template.render(params)
     with open(file, mode='w') as f:
         f.write(text)
     return text
+
+
+
     
 
 

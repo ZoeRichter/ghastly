@@ -33,7 +33,7 @@ atom_style	sphere
 
 boundary	f f f
 region		bounds block &
-		{{x_b.min}} {{x_b.max}} {{y_b.min}} {{y_b.max}} {{z_b.min}} {{z_b.max}}
+		{{xb_min}} {{xb_max}} {{yb_min}} {{yb_max}} {{zb_min}} {{zb_max}}
 create_box	1 bounds
 
 pair_style	gran/hertz/history/omp &
@@ -94,8 +94,12 @@ set		type 1 diameter ${d_pebble}
 run		${interval}
 run		${interval}
 
-region		pour_reg cylinder z {{x_c_pour}} {{y_c_pour}} {{r_pour}} &
-		{{zmin_pour}} {{zmax_pour}} side in units box
+variable	r_pour equal 0.75*${r_vessel}
+variable	pour_zmin equal ${vessel_zmax}+${r_pebble}
+variable	pour_zmax equal {{zb_max}}-${d_pebble}
+
+region		pour_reg cylinder z {vessel_x_c} {vessel_y_c} ${r_pour} &
+		${pour_zmin} ${pour_zmax} side in units box
 
 fix		fill_core all pour {{pebbles_left}} 1 ${seed} region pour_reg &
 		diam one ${d_pebble} dens ${density_rho} ${density_rho} vol 0.25 250
