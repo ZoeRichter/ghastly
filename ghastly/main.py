@@ -4,15 +4,17 @@ import ghastly
 from jinja2 import Environment, PackageLoader
 from ghastly import read_input
 from ghastly import region
-from lammps import lammps
 
 env = Environment(loader=PackageLoader('ghastly', 'templates'))
 
 
 def fill_core_lmp(input_file, rough_pf, 
-              pour_file = "pour_main.txt", dump_file = "rough-pack.txt",
-              variable_file = "pour_variables.txt", 
-              crp = False, openmc = False):
+                  fill_file = "fill_main.txt",
+                  fill_template = "lammps/fillmain_template.txt",
+                  dump_file = "rough-pack.txt",
+                  variable_file = "fill_variables.txt",
+                  variable_template = "lammps/variable_template.txt",
+                  crp = False, openmc = False, verbose = True):
     '''
     This function "roughly" packs the full core region defined by the Ghastly 
     input file, then uses a series of Jinja templates to create a LAMMPS 
@@ -31,13 +33,25 @@ def fill_core_lmp(input_file, rough_pf,
         greater than the target pf in the input file can result in overfilling
         of the core, and so it is reccommended to use a rough_pf that is
         less than or equal to the desired final pf.
+    fill_file : str
+        bleh
+    fill_template : str
+        bleh
+    dump_file : str
+        bleh
+    variable_file : str
+        blah
+    variable_template : str
+        bleh
+    crp : bool
+        bleh
+    openmc : bool
+        bleh
 
     Returns
     -------
     While this function does not have a return at its completion, it will
-    generate a number of files - both LAMMPS input files and files LAMMPS
-    itself will generate.  For that reason, it's recommended that this be
-    run inside its own directory, in order to keep these files organized.
+    generate a number of input files for LAMMPS.
     '''
 
     input_block = read_input.InputBlock(input_file)
@@ -58,7 +72,8 @@ def fill_core_lmp(input_file, rough_pf,
     main_vol = sum([i.volume for i in sim_block.core_main.values()])
     n_pebbles = int(np.floor((0.60*outlet_vol)/sim_block.pebble_volume) +
                     np.floor((sim_block.pf*main_vol)/sim_block.pebble_volume))
-    print("Target number of pebbles is "+str(n_pebbles))
+    if verbose:
+        print("Target number of pebbles is "+str(n_pebbles))
 
     pebbles_left = n_pebbles - len(rough_pack)
 
@@ -68,15 +83,27 @@ def fill_core_lmp(input_file, rough_pf,
 
     bound_limits = find_box_bounds(sim_block, pour=True)
 
-    write_lammps_dump_file(rough_pack, "ff ff ff", bound_limits, 
-                           dump_file)
+    write_lammps_dump_file(rough_pack, "ff ff ff", bound_limits, dump_file)
 
-    _write_variable_block(variable_file, input_block, sim_block)
+    _write_variable_block(input_block, sim_block, 
+                          variable_file, variable_template)
 
     reg_files, reg_names = _write_region_blocks(pack_zones)
 
-    _write_pour_main(pour_file, sim_block, variable_file, bound_limits,
-                    reg_files, reg_names, pebbles_left)
+    match sim_block.down_flow:
+        case True:
+            settle = ""
+        case _:
+            _write_settle_block("settle.txt", sim_block, reg_names)
+            settle = "include           settle.txt"
+
+    params = {'variable_file':variable_file,
+              'region_files' : reg_files,
+              'region_names' : reg_names,
+              'n_regions' : len(reg_names),
+              'pebbles_left' : pebbles_left,
+              'settle' : settle} | bound_limits
+    _templater(params, fillmain_file, fillmain_template)
 
 
 def _pack_cyl(sim_block, element, rough_pf, crp, openmc):
@@ -98,6 +125,10 @@ def _pack_cyl(sim_block, element, rough_pf, crp, openmc):
     rough_pf : float
         Target packing fraction for the initial rough pack (only useful if
         using OpenMC).
+    crp : bool
+        bleh
+    openmc : bool
+        bleh
 
     Returns
     -------
@@ -220,9 +251,15 @@ def find_box_bounds(sim_block, pour=False):
 
     return bound_limits
 
-def recirc_pebbles(input_file, init_bed_file,
-                   recirc_file, recirc_template, 
-                   var_file="recirc_var.txt"):
+def recirc_pebbles(input_file, init_bed_file, recirc_file, recirc_template,
+                   variable_file = "variables.txt", 
+                   variable_template = "lammps/variable_template.txt",
+                   velreg_file = "velreg.txt", 
+                   velreg_template = "lammps/velreg_template.txt",
+                   siminit_file = "siminit_file.txt",
+                   siminit_template = "lammps/siminit_template.txt",
+                   f2outlet_file = "f2outlet.txt",
+                   f2outlet_template = "lammps/f2outlet_template.txt"):
     '''
     Reads Ghastly input_file in order to generate a LAMMPS input file
     that will recirculate pebbles at the desired level of fidelity
@@ -240,77 +277,62 @@ def recirc_pebbles(input_file, init_bed_file,
         be used to generate an appropriately-formatted LAMMPS dump file from
         an numpy array of pebble centroid coordinates.
     recirc_file : str
-        Filename for the recirculating LAMMPS input file that
-        Ghastly generates.
+        Filename for the main LAMMPS input file Ghastly generates.
     recirc_template : str
         Filename of the main recirculation template.  Note that
         custom templates should be located in the ghastly/templates/
         directory.
-    var_file : str
+    variable_file : str
         Optional. File name for LAMMPS variable block file generated by
         Ghastly.
+    variable_template : str
+        bleh
+    velreg_file : str
+        bleh
+    velreg_template : str
+        bleh
+    siminit_file : str
+        bleh
+    siminit_template : str
+        bleh
+    f2outlet_file : str
+        bleh
+    f2outlet_template : str
+        bleh
 
     Returns
     ----------
     This function does not return any values, but it will generate a series
     of output files.  The one that should be run in order to start the
-    recirculation simulation is the file with a name matching input_file.
+    recirculation simulation is recirc_file.
     '''
     input_block = read_input.InputBlock(input_file)
     sim_block = input_block.create_obj()
 
     bound_limits = find_box_bounds(sim_block)
 
-    _write_variable_block(var_file, input_block, sim_block)
+    _write_variable_block(variable_file, input_block, sim_block)
+    _templater({}, velreg_file, velreg_template)
+    _templater({}, siminit_file, siminit_template)
 
-    active_core = (sim_block.core_inlet |
-                   sim_block.core_main |
-                   sim_block.core_outlet)
+    vessel = (sim_block.core_inlet |
+              sim_block.core_main |
+              sim_block.core_outlet)
+    reg_files, reg_names = write_region_blocks(vessel)
 
-    reg_files, reg_names = write_region_blocks(active_core)
+    params = {'variable_file' : variable_file,
+              'region_files' : reg_files,
+              'region_names' : reg_names,
+              'n_regions' : len(reg_names),
+              'velreg_file' : velreg_file,
+              'starting_bed' : init_bed_file,
+              'siminit_file' : siminit_file} | bound_limits
 
-    #note for tomorrow: this needs to be refactored to account for
-    #other changes to the main recirc template/methods, on top of using
-    #the templater instead.  For example, for very-high fidelity, you
-    #need to autogen that little outlet cone that drops one peb at
-    #a time
-
-    #also note for tomorrow: instead of passing params = params in .render()
-    #and then having everything in the template be {{param.key}}, looking
-    #over the docs again I think you can just do blah.render(params) and then
-    #use {{key}} directly in the templates.  if that works it'd be easier,
-    #but you'll have to change how the variable template works, I think?
-    #then you could do the thing of having a single running params dict you
-    #pass to the templater for each file you need made (except the regions,
-    #which need to be param'd separately bc. they'd overwrite each other
-
-    main_cyl = {key: value for key, value in sim_block.core_main.items() if
-                'cyl' in key}
-    out_cyl = {key: value for key, value in sim_block.core_outlet.items() if
-               'cyl' in key}
-    _, out_params = out_cyl.popitem()
-    r_chute = out_params.r
-    v_reg_file = "v_regs.txt"
-    v_reg_name = "v_reg"
-    write_v_regs(main_cyl, r_chute, v_reg_file, v_reg_name)
-
-    if sim_block.fidelity == 1:
-        write_recircf1_main(recirc_file, recirc_template, var_file,
-                            act_reg_files, act_reg_names,
-                            v_reg_file, v_reg_name,
-                            init_bed_file, sim_block, x_b, y_b, z_b)
     elif sim_block.fidelity == 2:
-        outlet_zone = {key: value for key, value in
-                       sim_block.recirc.items() if 'out' in key}
-        outlet_file = 'f2-recirc-zone.txt'
-        outlet_name = list(outlet_zone.keys())[0]
-        write_recircf2_regs(outlet_zone, outlet_file)
+        _write_f2outlet(sim_block, f2outlet_file, f2outlet_template)
+        params['f2outlet_file'] = f2outlet_file
 
-        write_recircf2_main(recirc_file, recirc_template, var_file,
-                            act_reg_files, act_reg_names,
-                            v_reg_file, v_reg_name,
-                            outlet_file, outlet_name,
-                            init_bed_file, sim_block, x_b, y_b, z_b)
+    _templater(params, recirc_file, recirc_template)
     return sim_block
 
 
@@ -354,13 +376,13 @@ def write_lammps_dump_file(coords, bound_conds, bound_limits, dump_file,
               'boundary' : bound_conds,
               'coords' : pebble_coords,
               'n_pebbles' : len(coords)} | bound_limits
-    _templater(params, dump_template, dump_file)
+    _templater(params, dump_file, dump_template)
 
     return
 
 
-def _write_variable_block(variable_file, input_block, sim_block, 
-                         variable_template = "lammps/variable_template.txt"):
+def _write_variable_block(input_block, sim_block, 
+                          variable_file, variable_template):
     '''
     Create the file containing LAMMPS variables, which can later be included
     in a main LAMMPS input.
@@ -369,6 +391,8 @@ def _write_variable_block(variable_file, input_block, sim_block,
     ----------
     variable_file : str
         The name of the variable block file to be created.
+    variable_template : str
+        bleh
     input_block : Ghastly InputBlock object
         Ghastly object made from reading a Ghastly input file.
     sim_block : Ghastly Sim object
@@ -380,20 +404,39 @@ def _write_variable_block(variable_file, input_block, sim_block,
         Generated file with the same name as variable_file.
     '''
 
+    vessel = (sim_block.core_main |sim_block.core_outlet)
+
+    r_vessel = max([element.r for element in vessel.values() 
+                    if type(element) == ghastly.core.CylCore])
+    vessel_zmax = max([element.zmax for element in vessel.values() 
+                       if type(element) == ghastly.core.CylCore])
+    vessel_zmin = min([element.z_min for element in vessel.values() 
+                       if type(element) == ghastly.core.CylCore])
+    vessel_x_c, vessel_y_c = [(element.x_c, element.y_c) for element 
+                              in sim_block.core_main.values() 
+                              if type(element) == ghastly.core.CylCore][0]
+
     variables = input_block.lammps_var
     variables["t_final"] = sim_block.t_final
     variables["r_pebble"] = sim_block.r_pebble
+    variables["vessel_zmin"] = vessel_zmin
+    variables["vessel_zmax"] = vessel_zmax
+    variables["vessel_x_c"] = vessel_x_c
+    variables["vessel_y_c"] = vessel_y_c
     variables["seed"] = sim_block.seed
     variables["recirc_target"] = sim_block.recirc_target
     variables["recirc_hz"] = sim_block.recirc_hz
 
-    _templater(variables, variable_template, variable_file)
+    params = {}
+    params['var_list'] = variables.items()
+
+    _templater(params, variable_file, variable_template)
 
 
 
-def _write_region_blocks(core_zones, 
-                        cyl_template = "lammps/cylcore_template.txt", 
-                        cone_template = "lammps/conecore_template.txt"):
+def _write_region_blocks(core_zones,
+                         cyl_template = "lammps/cyl_template",
+                         cone_template = "lammps/cone_template"):
     '''
     Creates region block LAMMPS files for each core element in the core zones
     passed to this function, which can be included in a main LAMMPS file.
@@ -404,6 +447,10 @@ def _write_region_blocks(core_zones,
         Dictionary with key:value pairs where each key is the name of a core
         element, and each value is a Ghastly Core object containing that
         element's parameters.
+    cyl_template : str
+        bleh
+    cone_template : str
+        bleh
 
     Returns
     -------
@@ -429,19 +476,19 @@ def _write_region_blocks(core_zones,
                   'open_top' : element.open_top}
         if type(element) == ghastly.core.CylCore:
             params['r'] = element.r
-            _templater(params, cyl_template, reg_file)
+            _templater(params, reg_file, cyl_template)
 
         elif type(element) == ghastly.core.ConeCore:
             params['r_major'] = element.r_major
             params['r_minor'] = element.r_minor
-            _templater(params, cone_template, reg_file)
+            _templater(params, reg_file, cone_template)
 
         else:
             raise TypeError(str(element_name)+" is not a CylCore or ConeCore.")
     return reg_files, reg_names
 
 
-def _write_settle_block(settle_file, sim_block, reg_files, reg_names):
+def _write_settle_block(settle_file, sim_block, reg_names):
     '''
     Write lammps code block that adds the outlet region to the simulation
     and reverses gravity, allowing pebbles to settle upwards after pouring
@@ -454,9 +501,6 @@ def _write_settle_block(settle_file, sim_block, reg_files, reg_names):
     sim_block : Ghastly Sim object
         Ghastly Sim object containing simulation-specific parameters.
         Generally created automatically from an input file.
-    reg_files : list
-        List of strings, where each string is the list of region files that
-        have been created during the automatic input file creation process.
     reg_names : list
         List of strings, where each string is the ID of the region
         corresponding to the region file with the same index in reg_files.
@@ -467,286 +511,104 @@ def _write_settle_block(settle_file, sim_block, reg_files, reg_names):
         Generated file with the same name as settle_file.
     '''
 
-    out_reg_files, out_reg_names = write_region_blocks(sim_block.core_outlet)
-    out_reg_names += reg_names
+    outlet_files, outlet_names = _write_region_blocks(sim_block.core_outlet)
+    outlet_names += reg_names
 
-    settle_template = env.get_template("settle_template.txt")
-    settle_text = settle_template.render(out_reg_files=out_reg_files,
-                                         n_regions=len(out_reg_names),
-                                         region_names=out_reg_names)
-
-    with open(settle_file, mode='w') as f:
-        f.write(settle_text)
-    return settle_text
+    params = {'outlet_files': outlet_files,
+              'n_regions' : len(outlet_names),
+              'region_names' : outlet_names}
+    _templater(params, settle_file, "lammps/settle_template.txt")
 
 
-def _write_pour_main(pour_file, sim_block, variable_file, x_b, y_b, z_b,
-                    reg_files, reg_names, pebbles_left):
-    '''
-    Create the main LAMMPS file for pouring pebbles into the core.
-
-    Parameters
-    ----------
-    pour_file : str
-        Name of the main pour file to be created.
-    sim_block : Ghastly Sim object
-        Sim class object with simulation-specific parameters.
-    variable_file : str
-        Name of the file containing the LAMMPS variable block
-    x_b : dict
-        Dictionary with key: value pairs giving the upper and lower
-        bounds in the x-direction for the bounding box.
-    y_b : dict
-        As x_b, but for the y-direction.
-    z_b : dict
-        As x_b but for the z-direction.
-    reg_files : list
-        A list of the files for the region blocks in LAMMPS.
-    reg_names : list
-        A list of the names of the regions used in LAMMPS.
-    pebbles_left : int
-        Number of pebbles that LAMMPS will be pouring.
-
-    Returns
-    -------
-    pour_file : file
-        Generated file with the same name as pour_file.
-    '''
-
-    main_core_zmax = max([(key, element.zmax)
-                           for key, element in sim_block.core_main.items()])
-    main_inlet = sim_block.core_main[main_core_zmax[0]]
-
-    x_c_pour = main_inlet.x_c
-    y_c_pour = main_inlet.y_c
-    zmax_pour = z_b["max"] - 0.01
-    zmin_pour = main_core_zmax[1] + 0.01
-
-    if type(main_inlet) == ghastly.core.CylCore:
-        r_pour = 0.75*main_inlet.r
-    elif type(main_inlet) == ghastly.core.ConeCore:
-        r_pour = 0.75*main_inlet.r_major
-
-    match sim_block.down_flow:
-        case True:
-            settle = ""
-        case _:
-            write_settle_block("settle.txt", sim_block, reg_files, reg_names)
-            settle = "include           settle.txt"
-
-    main_template = env.get_template("pour_main.txt")
-    main_text = main_template.render(variable_file=variable_file,
-                                     x_b=x_b,
-                                     y_b=y_b,
-                                     z_b=z_b,
-                                     region_files=reg_files,
-                                     n_regions=len(reg_files),
-                                     region_names=reg_names,
-                                     x_c_pour=x_c_pour,
-                                     y_c_pour=y_c_pour,
-                                     r_pour=r_pour,
-                                     zmin_pour=zmin_pour,
-                                     zmax_pour=zmax_pour,
-                                     pebbles_left=pebbles_left,
-                                     settle=settle)
-
-    pour_file = "pour_main_input.txt"
-    with open(pour_file, mode='w') as f:
-        f.write(main_text)
-    return main_text
-
-
-def _write_recircf2_regs(outlet_zone, outlet_file):
+def _write_f2outlet(sim_block, f2outlet_file, f2outlet_template):
     '''
     Writes file for the recirculation region used to select which pebbles
     should be recirculated each loop in LAMMPS.  This region is non-physical.
 
     Parameters
     ----------
-    outlet_zone : dict
-        dictionary where the key is the
-        name of the recirculation outlet zone and
-        the value is the Ghastly Core object that defines
-        this region.
-    outlet_file : str
+    sim_block : ghastly Sim object
+        bleh
+    f2outlet_file : str
         file name of the recirculation outlet zone region block.
+    f2outlet_template : str
+        bleh
 
     Returns
     ----------
     This function has no return, but does generate a file named outlet_file.
     '''
 
-    outlet_template = env.get_template("recircf2_outlet_template.txt")
-    name, param = outlet_zone.popitem()
-    outlet_text = outlet_template.render(outlet_name=name,
-                                         x_c=param.x_c,
-                                         y_c=param.y_c,
-                                         r=param.r,
-                                         zmin=param.zmin,
-                                         zmax=param.zmax)
-    with open(outlet_file, mode='w') as f:
-        f.write(outlet_text)
-    return outlet_text
+    f2outlet_zmin = min([element.z_min for element 
+                       in sim_block.core_outlet.values() 
+                       if type(element) == ghastly.core.CylCore])
+    f2outlet_zmax = f2outlet_zmin + 2*(sim_block.r_pebble)
+    x_c, y_c = [(element.x_c, element.y_c) for element 
+                in sim_block.core_outlet.values() 
+                if type(element) == ghastly.core.CylCore][0]
+    params = {'x_c' : x_c,
+              'y_c' : y_c,
+              'zmin' : f2outlet_zmin,
+              'zmax' : f2outlet_zmax}
+
+    _templater(params, f2outlet_file, f2outlet_template)
 
 
-def _write_v_regs(main_cyl, r_chute, v_reg_file, v_reg_name):
+def _write_velreg(sim_block, velreg_file, velreg_template):
     '''
     Writes a file containing region blocks used for dumping velocity
     information by-region in the main core.  These are non-physical regions.
 
     Parameters
     ----------
-    main_cyl : dict
-        dict where the key:value pair is the name of the region comprising
-        the main cylindrical portion of the core: the Ghastly Core object
-        defining this region.
-    r_chute : float
-        the radius of the chute, in units matching the distance units used in
-        LAMMPS (by default, Ghastly uses SI units, which uses meters).
-    v_reg_file: str
+    sim_block : 
+        bleh
+    velreg_file: str
         Filename of the velocity region input block file that this function
         generates.
-    v_reg_name : str
-        Base region name for the velocity regions.  As there are multiple
-        sub-regions that need to be defined, then made into one union,
-        sub-regions are labeled [v_reg_name]_1, [v_reg_name]_2, etc.
+    velreg_template : str
+        bleh
 
     Returns
     ----------
-    This function has no returns, but does generate a file named v_reg_file.
+    This function has no returns, but does generate a file named velreg_file.
     '''
-    v_reg_template = env.get_template("velreg_template.txt")
-    _, param = main_cyl.popitem()
-    v_reg_text = v_reg_template.render(r_wall=param.r,
-                                       v_reg_name=v_reg_name,
-                                       x_c=param.x_c,
-                                       y_c=param.y_c,
-                                       r_chute=r_chute,
-                                       zmin=param.zmin,
-                                       zmax=param.zmax)
-    with open(v_reg_file, mode='w') as f:
-        f.write(v_reg_text)
-    return v_reg_text
+    
+    vessel = (sim_block.core_main |sim_block.core_outlet)
 
+    r_vessel = max([element.r for element in vessel.values() 
+                   if type(element) == ghastly.core.CylCore])
+    velreg_zmax = max([element.zmax for element in vessel.values() 
+                   if type(element) == ghastly.core.CylCore])
+    velreg_zmin = min([element.z_min for element in vessel.values() 
+                       if type(element) == ghastly.core.CylCore])
+    x_c, y_c = [(element.x_c, element.y_c) for element 
+                in sim_block.core_main.values() 
+                if type(element) == ghastly.core.CylCore][0]
 
-def _write_recircf2_main(recirc_file, recirc_template, var_file,
-                        act_reg_files, act_reg_names,
-                        v_reg_file, v_reg_name,
-                        outlet_file, outlet_name,
-                        init_bed_file, sim_block, x_b, y_b, z_b):
-    '''
-    Uses the main F2 template and the files containing smaller blocks of the
-    LAMMPS model to create the main F2 recirculation file.
+    params = {'r_vessel' : r_vessel,
+              'zmin' : velreg_zmin,
+              'zmax' : velreg_zmax,
+              'x_c' : x_c,
+              'y_c' : y_c}
 
-    Parameters
-    ----------
-    recirc_file : str
-        Name of generated LAMMPS input file.
-    recirc_template : str
-        Filename of the F2 recirculation template to be used.
-    var_file : str
-        Filename of a previously-generated variable block.
-    act_reg_files : list of str
-        List of previously-generated files for the region blocks defining
-        the physical bounds of the active core.
-    act_reg_names : list of str
-        List of the name of each region that defines the active core.  Must
-        match names of regions in the act_reg_files.
-    v_reg_file : str
-        Filename of a previously-generated velocity regions file.
-    v_reg_name : str
-        Base name of the velocity regions.
-    outlet_file : str
-        Filename of a previously-generated region block that defines the
-        zone that pebbles are pulled from when recirculating.
-    outlet_name : str
-        Name of the outlet recirculation region defined in outlet_file.
-    init_bed_file : str
-        Filename of LAMMPS dump file containing pebble bed starting positions.
-    sim_block : Ghastly Sim object
-        Sim object holding simulation-wide parameters for the current problem.
-    x_b, y_b, z_b : dict
-        dicts with 2 key:value pairs, each defining the min and max of the
-        simulation's bounding box on their respective axis.
-
-    Returns
-    ----------
-    This function has no returns, but does output a file named recirc_file.
-    '''
-
-    main_template = env.get_template(recirc_template)
-    main_text = main_template.render(variable_file=var_file,
-                                     x_b=x_b, y_b=y_b, z_b=z_b,
-                                     region_files=act_reg_files,
-                                     n_regions=len(act_reg_files),
-                                     region_names=act_reg_names,
-                                     v_reg_file=v_reg_file,
-                                     v_reg_name=v_reg_name,
-                                     starting_bed=init_bed_file,
-                                     outlet_file=outlet_file,
-                                     outlet_name=outlet_name)
-
-    with open(recirc_file, mode='w') as f:
-        f.write(main_text)
-    return main_text
-
-
-def _write_recircf1_main(recirc_file, recirc_template, var_file,
-                        act_reg_files, act_reg_names,
-                        v_reg_file, v_reg_name,
-                        init_bed_file, sim_block, x_b, y_b, z_b):
-    '''
-    write recirc main file for LAMMPS
-
-    Parameters
-    ----------
-    recirc_file : str
-        Name of generated LAMMPS input file.
-    recirc_template : str
-        Filename of the F2 recirculation template to be used.
-    var_file : str
-        Filename of a previously-generated variable block.
-    act_reg_files : list of str
-        List of previously-generated filenames for the region blocks defining
-        the physical bounds of the active core.
-    act_reg_names : list of str
-        List of the name of each region that defines the active core.  Must
-        match names of regions in the act_reg_files.
-    v_reg_file : str
-        Filename of a previously-generated velocity regions file.
-    v_reg_name : str
-        Base name of the velocity regions.
-    init_bed_file : str
-        Filename of LAMMPS dump file containing pebble bed starting positions.
-    sim_block : Ghastly Sim object
-        Sim object holding simulation-wide parameters for the current problem.
-    x_b, y_b, z_b : dict
-        dicts with 2 key:value pairs, each defining the min and max of the
-        simulation's bounding box on their respective axis.
-
-    Returns
-    ----------
-    This function has no returns, but does output a file named recirc_file.
-
-    '''
-
-    main_template = env.get_template(recirc_template)
-    main_text = main_template.render(variable_file=var_file,
-                                     x_b=x_b, y_b=y_b, z_b=z_b,
-                                     region_files=act_reg_files,
-                                     n_regions=len(act_reg_files),
-                                     region_names=act_reg_names,
-                                     v_reg_file=v_reg_file,
-                                     v_reg_name=v_reg_name,
-                                     starting_bed=init_bed_file)
-
-    with open(recirc_file, mode='w') as f:
-        f.write(main_text)
-    return main_text
+    _templater(params, velreg_file, velreg_template)
 
 def _templater(params, template_name, file):
     '''
-    given text dict and template file name, create file
+    given parameter dict and template file name, render and write file
+
+    Parameters
+    ----------
+    params : dict
+        bleh
+    file : str
+        bleh
+    template_name : str
+        bleh
+
+    Returns
+    ----------
     '''
     
     template = env.get_template(template_name)
