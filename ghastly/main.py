@@ -8,13 +8,13 @@ from ghastly import region
 env = Environment(loader=PackageLoader('ghastly', 'templates'))
 
 
-def fill_core(input_file, rough_pf = 0.5, 
-              fillmain_file = "fill_main.txt",
-              fillmain_template = "lammps/fillmain_template.txt",
-              roughpack_file = "rough-pack.txt",
-              variable_file = "fill_variables.txt",
-              variable_template = "lammps/variable_template.txt",
-              crp = False, openmc = False, verbose = True):
+def fill_core(input_file, rough_pf=0.5,
+              fillmain_file="fill_main.txt",
+              fillmain_template="lammps/fillmain_template.txt",
+              roughpack_file="rough-pack.txt",
+              variable_file="fill_variables.txt",
+              variable_template="lammps/variable_template.txt",
+              crp=False, openmc=False, verbose=True):
     '''
     This function "roughly" packs the full core region defined by the Ghastly 
     input file, then uses a series of Jinja templates to create a LAMMPS 
@@ -87,9 +87,10 @@ def fill_core(input_file, rough_pf = 0.5,
 
     bound_limits = find_box_bounds(sim_block, pour=True)
 
-    write_lammps_dump_file(rough_pack, "ff ff ff", bound_limits, roughpack_file)
+    write_lammps_dump_file(rough_pack, "ff ff ff",
+                           bound_limits, roughpack_file)
 
-    _write_variable_block(input_block, sim_block, 
+    _write_variable_block(input_block, sim_block,
                           variable_file, variable_template)
 
     reg_files, reg_names = _write_region_blocks(pack_zones)
@@ -101,13 +102,13 @@ def fill_core(input_file, rough_pf = 0.5,
             _write_settle_block("settle.txt", sim_block, reg_names)
             settle = "include           settle.txt"
 
-    params = {'variable_file':variable_file,
-              'region_files' : reg_files,
-              'region_names' : reg_names,
-              'n_regions' : len(reg_names),
-              'roughpack_file' : roughpack_file,
-              'pebbles_left' : pebbles_left,
-              'settle' : settle} | bound_limits
+    params = {'variable_file': variable_file,
+              'region_files': reg_files,
+              'region_names': reg_names,
+              'n_regions': len(reg_names),
+              'roughpack_file': roughpack_file,
+              'pebbles_left': pebbles_left,
+              'settle': settle} | bound_limits
     _templater(params, fillmain_file, fillmain_template)
 
 
@@ -161,24 +162,24 @@ def _pack_core(sim_block, element, rough_pf, crp, openmc):
             coords = list(points)
         else:
             coords = []
-    
+
     else:
         r_sph = sim_block.r_pebble + (0.05*sim_block.r_pebble)
         center = (element.x_c, element.y_c, (element.zmax-element.zmin)/2)
         match type(element):
             case  ghastly.core.CylCore:
                 r = element.r
-                lim = {'z':[element.zmin+r_sph, element.zmax-r_sph],
-                       'r':[(0, 0), (0, r - r_sph)]}
+                lim = {'z': [element.zmin+r_sph, element.zmax-r_sph],
+                       'r': [(0, 0), (0, r - r_sph)]}
             case ghastly.core.ConeCore:
                 r = element.r_major
                 m = element.h/(element.r_major - element.r_minor)
-                lim = {'z':[element.zmin+r_sph, element.zmax-r_sph],
-                       'r':[(0, 0), (1/m, element.r_minor 
-                                     - (r_sph/m)*(m**2+1)**0.5 
-                                     - (center[2] - element.h/2)/m)]}
+                lim = {'z': [element.zmin+r_sph, element.zmax-r_sph],
+                       'r': [(0, 0), (1/m, element.r_minor
+                                      - (r_sph/m)*(m**2+1)**0.5
+                                      - (center[2] - element.h/2)/m)]}
 
-        n_pebbles = int((rough_pf*element.volume)/
+        n_pebbles = int((rough_pf*element.volume) /
                         (4/3*np.pi*sim_block.r_pebble**3))
         nx = int((2*r)/r_sph)
         ny = int((2*r)/r_sph)
@@ -193,9 +194,8 @@ def _pack_core(sim_block, element, rough_pf, crp, openmc):
             r_lim = lim['r'][1][0]*p[2] + lim['r'][1][1]
             if radius <= r_lim and p[2] >= lim['z'][0] and p[2] <= lim['z'][1]:
                 in_bounds += [p]
-        in_bounds = sorted(in_bounds, key = lambda x: x[2])
+        in_bounds = sorted(in_bounds, key=lambda x: x[2])
         coords = in_bounds[:n_pebbles]
-        
 
     return coords
 
@@ -253,24 +253,25 @@ def find_box_bounds(sim_block, pour=False):
             f_zup = 10.0
         case _:
             f_zup = 5.0
-    bound_limits = {'xb_min' : min(x_list) - f*sim_block.r_pebble,
-                    'xb_max' : max(x_list) + f*sim_block.r_pebble,
-                    'yb_min' : min(y_list) - f*sim_block.r_pebble,
-                    'yb_max' : max(y_list) + f*sim_block.r_pebble,
-                    'zb_min' : min(z_list) - f*sim_block.r_pebble,
-                    'zb_max' : max(z_list) + f_zup*sim_block.r_pebble}
+    bound_limits = {'xb_min': min(x_list) - f*sim_block.r_pebble,
+                    'xb_max': max(x_list) + f*sim_block.r_pebble,
+                    'yb_min': min(y_list) - f*sim_block.r_pebble,
+                    'yb_max': max(y_list) + f*sim_block.r_pebble,
+                    'zb_min': min(z_list) - f*sim_block.r_pebble,
+                    'zb_max': max(z_list) + f_zup*sim_block.r_pebble}
 
     return bound_limits
 
+
 def recirc_pebbles(input_file, init_bed_file, recirc_file, recirc_template,
-                   variable_file = "variables.txt", 
-                   variable_template = "lammps/variable_template.txt",
-                   velreg_file = "velreg.txt", 
-                   velreg_template = "lammps/velreg_template.txt",
-                   siminit_file = "siminit_file.txt",
-                   siminit_template = "lammps/siminit_template.txt",
-                   f2outlet_file = "f2outlet.txt",
-                   f2outlet_template = "lammps/f2outlet_template.txt"):
+                   variable_file="variables.txt",
+                   variable_template="lammps/variable_template.txt",
+                   velreg_file="velreg.txt",
+                   velreg_template="lammps/velreg_template.txt",
+                   siminit_file="siminit_file.txt",
+                   siminit_template="lammps/siminit_template.txt",
+                   f2outlet_file="f2outlet.txt",
+                   f2outlet_template="lammps/f2outlet_template.txt"):
     '''
     Reads Ghastly input_file in order to generate a LAMMPS input file
     that will recirculate pebbles at the desired level of fidelity.
@@ -330,7 +331,7 @@ def recirc_pebbles(input_file, init_bed_file, recirc_file, recirc_template,
 
     bound_limits = find_box_bounds(sim_block)
 
-    _write_variable_block(input_block, sim_block, 
+    _write_variable_block(input_block, sim_block,
                           variable_file, variable_template)
     _templater({}, velreg_file, velreg_template)
     _templater({}, siminit_file, siminit_template)
@@ -340,13 +341,13 @@ def recirc_pebbles(input_file, init_bed_file, recirc_file, recirc_template,
               sim_block.core_outlet)
     reg_files, reg_names = _write_region_blocks(vessel)
 
-    params = {'variable_file' : variable_file,
-              'region_files' : reg_files,
-              'region_names' : reg_names,
-              'n_regions' : len(reg_names),
-              'velreg_file' : velreg_file,
-              'starting_bed' : init_bed_file,
-              'siminit_file' : siminit_file} | bound_limits
+    params = {'variable_file': variable_file,
+              'region_files': reg_files,
+              'region_names': reg_names,
+              'n_regions': len(reg_names),
+              'velreg_file': velreg_file,
+              'starting_bed': init_bed_file,
+              'siminit_file': siminit_file} | bound_limits
 
     if sim_block.fidelity == 2:
         _write_f2outlet(sim_block, f2outlet_file, f2outlet_template)
@@ -356,10 +357,9 @@ def recirc_pebbles(input_file, init_bed_file, recirc_file, recirc_template,
     return sim_block
 
 
-
 def write_lammps_dump_file(coords, bound_conds, bound_limits, dump_file,
-                           timestep = 0,
-                           dump_template = "lammps/dump_template.txt"):
+                           timestep=0,
+                           dump_template="lammps/dump_template.txt"):
     '''
     Using the coordinate array and simulation boundary conditions and
     dimentions, this function uses a jinja template
@@ -394,16 +394,16 @@ def write_lammps_dump_file(coords, bound_conds, bound_limits, dump_file,
 
     pebble_coords = [{"id": i, "x": v[0], "y": v[1], "z": v[2]}
                      for i, v in enumerate(coords)]
-    params = {'timestep' : timestep,
-              'boundary' : bound_conds,
-              'coords' : pebble_coords,
-              'n_pebbles' : len(coords)} | bound_limits
+    params = {'timestep': timestep,
+              'boundary': bound_conds,
+              'coords': pebble_coords,
+              'n_pebbles': len(coords)} | bound_limits
     _templater(params, dump_file, dump_template)
 
     return
 
 
-def _write_variable_block(input_block, sim_block, 
+def _write_variable_block(input_block, sim_block,
                           variable_file, variable_template):
     '''
     Create the file containing LAMMPS variables, which can later be included
@@ -428,16 +428,16 @@ def _write_variable_block(input_block, sim_block,
         Generated file with the same name as variable_file.
     '''
 
-    vessel = (sim_block.core_main |sim_block.core_outlet)
+    vessel = (sim_block.core_main | sim_block.core_outlet)
 
-    r_vessel = max([element.r for element in vessel.values() 
+    r_vessel = max([element.r for element in vessel.values()
                     if type(element) == ghastly.core.CylCore])
-    vessel_zmax = max([element.zmax for element in vessel.values() 
+    vessel_zmax = max([element.zmax for element in vessel.values()
                        if type(element) == ghastly.core.CylCore])
-    vessel_zmin = min([element.zmin for element in vessel.values() 
+    vessel_zmin = min([element.zmin for element in vessel.values()
                        if type(element) == ghastly.core.CylCore])
-    vessel_x_c, vessel_y_c = [(element.x_c, element.y_c) for element 
-                              in sim_block.core_main.values() 
+    vessel_x_c, vessel_y_c = [(element.x_c, element.y_c) for element
+                              in sim_block.core_main.values()
                               if type(element) == ghastly.core.CylCore][0]
 
     variables = input_block.lammps_var
@@ -461,8 +461,8 @@ def _write_variable_block(input_block, sim_block,
 
 
 def _write_region_blocks(core_zones,
-                         cyl_template = "lammps/cyl_template.txt",
-                         cone_template = "lammps/cone_template.txt"):
+                         cyl_template="lammps/cyl_template.txt",
+                         cone_template="lammps/cone_template.txt"):
     '''
     Creates region block LAMMPS files for each core element in the core zones
     passed to this function, which can be included in a main LAMMPS file.
@@ -495,13 +495,13 @@ def _write_region_blocks(core_zones,
         reg_names.append(str(element_name))
         reg_file = str(element_name)+"_region.txt"
         reg_files.append(reg_file)
-        params = {'name' : element_name,
-                  'x_c' : element.x_c,
-                  'y_c' : element.y_c,
-                  'zmin' : element.zmin,
-                  'zmax' : element.zmax,
-                  'open_bottom' : element.open_bottom,
-                  'open_top' : element.open_top}
+        params = {'name': element_name,
+                  'x_c': element.x_c,
+                  'y_c': element.y_c,
+                  'zmin': element.zmin,
+                  'zmax': element.zmax,
+                  'open_bottom': element.open_bottom,
+                  'open_top': element.open_top}
         if type(element) == ghastly.core.CylCore:
             params['r'] = element.r
             _templater(params, reg_file, cyl_template)
@@ -543,8 +543,8 @@ def _write_settle_block(settle_file, sim_block, reg_names):
     outlet_names += reg_names
 
     params = {'outlet_files': outlet_files,
-              'n_regions' : len(outlet_names),
-              'region_names' : outlet_names}
+              'n_regions': len(outlet_names),
+              'region_names': outlet_names}
     _templater(params, settle_file, "lammps/settle_template.txt")
 
 
@@ -570,19 +570,20 @@ def _write_f2outlet(sim_block, f2outlet_file, f2outlet_template):
     This function has no return, but does generate a file named outlet_file.
     '''
 
-    f2outlet_zmin = min([element.zmin for element 
-                       in sim_block.core_outlet.values() 
-                       if type(element) == ghastly.core.CylCore])
+    f2outlet_zmin = min([element.zmin for element
+                         in sim_block.core_outlet.values()
+                         if type(element) == ghastly.core.CylCore])
     f2outlet_zmax = f2outlet_zmin + 2*(sim_block.r_pebble)
-    x_c, y_c = [(element.x_c, element.y_c) for element 
-                in sim_block.core_outlet.values() 
+    x_c, y_c = [(element.x_c, element.y_c) for element
+                in sim_block.core_outlet.values()
                 if type(element) == ghastly.core.CylCore][0]
-    params = {'x_c' : x_c,
-              'y_c' : y_c,
-              'zmin' : f2outlet_zmin,
-              'zmax' : f2outlet_zmax}
+    params = {'x_c': x_c,
+              'y_c': y_c,
+              'zmin': f2outlet_zmin,
+              'zmax': f2outlet_zmax}
 
     _templater(params, f2outlet_file, f2outlet_template)
+
 
 def _templater(params, file, template_name):
     '''
@@ -602,15 +603,9 @@ def _templater(params, file, template_name):
     Returns
     ----------
     '''
-    
+
     template = env.get_template(template_name)
     text = template.render(params)
     with open(file, mode='w') as f:
         f.write(text)
     return text
-
-
-
-    
-
-
