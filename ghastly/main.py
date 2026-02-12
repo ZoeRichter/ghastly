@@ -574,11 +574,12 @@ def _write_f2outlet(sim_block, f2outlet_file, f2outlet_template):
                          in sim_block.core_outlet.values()
                          if type(element) == ghastly.core.CylCore])
     f2outlet_zmax = f2outlet_zmin + 2*(sim_block.r_pebble)
-    x_c, y_c = [(element.x_c, element.y_c) for element
-                in sim_block.core_outlet.values()
-                if type(element) == ghastly.core.CylCore][0]
+    x_c, y_c, r = [(element.x_c, element.y_c, element.r) for element
+                   in sim_block.core_outlet.values() 
+                   if type(element) == ghastly.core.CylCore][0]
     params = {'x_c': x_c,
               'y_c': y_c,
+              'r' : r,
               'zmin': f2outlet_zmin,
               'zmax': f2outlet_zmax}
 
