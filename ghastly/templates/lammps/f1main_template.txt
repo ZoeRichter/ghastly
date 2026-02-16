@@ -142,6 +142,9 @@ reset_timestep	${new_timestep} time ${new_time}
 variable	next_idx equal ${idx}+1
 variable	idx equal v_next_idx
 variable	next_idx delete
+write_data      data.init nocoeff nolabelmap
+group           init_time empty
+write_dump      init_time custom init_time.txt id
 
 if		"$(time) >= ${t_final}" then "jump SELF break"
 variable	z_recirc delete
