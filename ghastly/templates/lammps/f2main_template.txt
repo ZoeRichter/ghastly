@@ -139,7 +139,10 @@ compute		n outlet count/type atom
 run		0
 variable	N equal c_n[1]
 
-run 		${recirc_run}	
+run 		${recirc_run}
+write_data      data.init nocoeff nolabelmap
+group           init_time empty
+write_dump      init_time custom init_time.txt id
 
 variable	recirculated equal ${recirculated}+${N}
 variable	displace delete
