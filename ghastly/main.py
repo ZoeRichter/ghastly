@@ -195,7 +195,10 @@ def _pack_core(sim_block, element, rough_pf, crp, openmc):
             if radius <= r_lim and p[2] >= lim['z'][0] and p[2] <= lim['z'][1]:
                 in_bounds += [p]
         in_bounds = sorted(in_bounds, key=lambda x: x[2])
-        coords = in_bounds[:n_pebbles]
+        if n_pebbles < len(in_bounds):
+            coords = in_bounds[:n_pebbles]
+        else:
+            coords = in_bounds
 
     return coords
 
