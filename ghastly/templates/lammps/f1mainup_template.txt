@@ -80,7 +80,7 @@ variable	pix_height equal round((abs({{z_b.min}})+abs({{z_b.max}}))*250)
 variable	frame_freq equal round(1/(30*${dt}))
 variable	dump_freq equal 200000
 
-include		{{v_reg_file}}
+include		{{vreg_file}}
 group		2wallgroup dynamic all region 2wall
 group		5wallgroup dynamic all region 5wall
 group		8wallgroup dynamic all region 8wall
@@ -130,6 +130,9 @@ variable	i loop ${index}
 
 ########## Start recirc loop ##########
 label		recirculate
+
+variable	z_recirc atom "z == bound(all, zmax)"
+group		recirc variable z_recirc
 
 variable	next_pass atom (i_pass<5)*round(i_pass+1)
 set		group recirc i_pass v_next_pass
