@@ -374,9 +374,6 @@ def write_lammps_dump_file(coords, bound_conds, bound_limits, dump_file,
     ----------
     coords : list
         List of pebble centroid coordinates.
-    dump_file : str
-        Desired name of LAMMPS dumpfile created.  Please see LAMMPS read dump
-        documentation for a full list of acceptable dump file types.
     bound_conds : str
         String providing the exact surface boundary conditions to be used
         in the LAMMPS bounding box.  See LAMMPS documentation for more
@@ -384,6 +381,9 @@ def write_lammps_dump_file(coords, bound_conds, bound_limits, dump_file,
     bound_limits : dict
         Dictionary with key:value pairs in the form of 
         {'xb_min':xmin, 'xb_max':xmax, ... , 'zb_max':zmax}
+    dump_file : str
+        Desired name of LAMMPS dumpfile created.  Please see LAMMPS read dump
+        documentation for a full list of acceptable dump file types.
     timestep : int
         Timestep to use inside dump file.  Default is 0.
     dump_template : string
@@ -416,14 +416,14 @@ def _write_variable_block(input_block, sim_block,
 
     Parameters
     ----------
-    variable_file : str
-        The name of the variable block file to be created.
-    variable_template : str
-        Template used to generate variable_file.
     input_block : Ghastly InputBlock object
         Ghastly object made from reading a Ghastly input file.
     sim_block : Ghastly Sim object
         Object containing simulation-specific information.
+    variable_file : str
+        The name of the variable block file to be created.
+    variable_template : str
+        Template used to generate variable_file.
 
     Returns
     -------
@@ -598,11 +598,12 @@ def _templater(params, file, template_name):
     Parameters
     ----------
     params : dict
-        bleh
+        Dictionary with key:value pairs where the key is the variable name
+        within the jinja template.
     file : str
-        bleh
+        Name of file to be created.
     template_name : str
-        bleh
+        Name of template to be used.
 
     Returns
     ----------
