@@ -144,7 +144,7 @@ def _pack_core(sim_block, element, rough_pf, crp):
         cylindrical region matching the core element passed to pack_cyl.
     '''
 
-    if crp == casefold('openmc'):
+    if crp.casefold == 'openmc':
         match type(element):
             case ghastly.core.CylCore:
                 sides = openmc.ZCylinder(x0=element.x_c,
