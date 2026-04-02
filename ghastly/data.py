@@ -58,7 +58,7 @@ def create_data_hdf5(inputfile, coordpath, recircpath, n0=0,
         case 'ft':
             c = 30.48
 
-    data_file = data_name + ".h5"
+    data_file = data_name + ".hdf"
     xmf_file = data_name + ".xmf"
 
     # delete the old h5 and create the new one from scratch.
@@ -79,12 +79,10 @@ def create_data_hdf5(inputfile, coordpath, recircpath, n0=0,
         sim_step = int(n0 + tstep*n_dump)
         i_r = int((tstep*n_dump)//n_recirc)
         t_scale = P[i_r]/(n_recirc*dt*recirc_hz)
-        sim_time = sim_step*dt
-        reactor_time = sim_time*t_scale
         data = read_input.read_lammps_bin(c_fnames[tstep], cpath)
         uid = []
         coord = []
-        vx, vy, vz, vmag = [], [], [], []
+        v, vmag = [], []
         zone = []
         layer = []
         pass_n = []
@@ -97,12 +95,20 @@ def create_data_hdf5(inputfile, coordpath, recircpath, n0=0,
             layer.append(int(d[pattern[5]]))
             pass_n.append(int(d[pattern[6]]))
             recirc_n.append(int(d[pattern[7]]))
-            vxi, vyi, vzi = c*d[pattern[8]], c*d[pattern[9]], c*d[pattern[10]]
-            vx.append(vxi)
-            vy.append(vyi)
-            vz.append(vzi)
-            vmag.append(sum([vxi**2 + vyi**2 + vzi**2])**0.5)
-            
+            vi = [c*d[pattern[8]], c*d[pattern[9]], c*d[pattern[10]]]
+            v.append(vi)
+            vmag.append(sum([vi[0]**2 + vi[1]**2 + vi[2]**2])**0.5)
+        
+        uid_key = sorted(enumerate(uid), key=lambda x: x[1])
+        coord = [coord[i] for i, _ in uid_key]
+        zone = [zone[i] for i, _ in uid_key]
+        layer = [layer[i] for i, _ in uid_key]
+        pass_n = [pass_n[i] for i, _ in uid_key]
+        recirc_n = [recirc_n[i] for i, _ in uid_key]
+        v = [v[i] for i, _ in uid_key]
+        vmag = [vmag[i] for i, _ in uid_key]
+        shape_n = len(coord)
+
 
         with h5py.File(data_file, mode='a') as h5f:
             #initialize h5 if needed:
@@ -112,77 +118,136 @@ def create_data_hdf5(inputfile, coordpath, recircpath, n0=0,
                 h5f.attrs['recirc_hz'] = recirc_hz
                 h5f.attrs['n_dump'] = n_dump
                 h5f.attrs['n_recirc'] = n_recirc
-
-                _init_data_h5(h5f, coord, vx, vy, vz, vmag, uid, zone, layer, 
-                              pass_n, recirc_n, reactor_time, t_scale)
+                root = h5f.create_group("VTKHDF")
+                _init_data_h5(root, coord, v, vmag, zone, layer, 
+                              pass_n, recirc_n, t_scale)
             #append if not:
             else:
-                new_size = h5f['xyz'].shape[0] + 1
+                new_size = h5f["VTKHDF"]['Points'].shape[0] + 1
+                h5f["VTKHDF"]['Steps'].attrs['Nsteps'] = new_size
+                h5f["VTKHDF"]['Steps']['Values'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Steps']['Values'][-1] = new_size-1
+                h5f["VTKHDF"]['Steps']['PartOffsets'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Steps']['PartOffsets'][-1] = new_size-1
                 
-                h5f['xyz'].resize(new_size, axis=0)
-                h5f['xyz'][-1] = coord
+                h5f["VTKHDF"]['Points'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Points'][-1] = coord
+                h5f["VTKHDF"]['Steps']['PointOffsets'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Steps']['PointOffsets'][-1] = new_size-1
+                h5f["VTKHDF"]['NumberofPoints'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['NumberofPoints'][-1] = shape_n
 
-                h5f['vx'].resize(new_size, axis=0)
-                h5f['vx'][-1] = vx
-                h5f['vy'].resize(new_size, axis=0)
-                h5f['vy'][-1] = vy
-                h5f['vz'].resize(new_size, axis=0)
-                h5f['vz'][-1] = vz
-                h5f['vmag'].resize(new_size, axis=0)
-                h5f['vmag'][-1] = vmag
+                h5f["VTKHDF"]['PointData']['v'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['PointData']['v'][-1] = v
+                h5f["VTKHDF"]['Steps']['PointDataOffsets']['v'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Steps']['PointDataOffsets']['v'][-1] = new_size-1
 
-                h5f['uid'].resize(new_size, axis=0)
-                h5f['uid'][-1] = uid
-                h5f['zone'].resize(new_size, axis=0)
-                h5f['zone'][-1] = zone
-                h5f['layer'].resize(new_size, axis=0)
-                h5f['layer'][-1] = layer
-                h5f['pass_n'].resize(new_size, axis=0)
-                h5f['pass_n'][-1] = pass_n
-                h5f['recirc_n'].resize(new_size, axis=0)
-                h5f['recirc_n'][-1] = recirc_n
-                h5f['reactor_time'].resize(new_size, axis=0)
-                h5f['reactor_time'][-1] = reactor_time
-                h5f['time_scale'].resize(new_size, axis=0)
-                h5f['time_scale'][-1] = t_scale
+                h5f["VTKHDF"]['PointData']['vmag'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['PointData']['vmag'][-1] = vmag
+                h5f["VTKHDF"]['Steps']['PointDataOffsets']['vmag'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Steps']['PointDataOffsets']['vmag'][-1] = new_size-1
+
+                h5f["VTKHDF"]['PointData']['zone'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['PointData']['zone'][-1] = zone
+                h5f["VTKHDF"]['Steps']['PointDataOffsets']['zone'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Steps']['PointDataOffsets']['zone'][-1] = new_size-1
+
+                h5f["VTKHDF"]['PointData']['layer'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['PointData']['layer'][-1] = layer
+                h5f["VTKHDF"]['Steps']['PointDataOffsets']['layer'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Steps']['PointDataOffsets']['layer'][-1] = new_size-1
+                
+                h5f["VTKHDF"]['PointData']['pass_n'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['PointData']['pass_n'][-1] = pass_n
+                h5f["VTKHDF"]['Steps']['PointDataOffsets']['pass_n'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Steps']['PointDataOffsets']['pass_n'][-1] = new_size-1
+                
+                h5f["VTKHDF"]['PointData']['recirc_n'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['PointData']['recirc_n'][-1] = recirc_n
+                h5f["VTKHDF"]['Steps']['PointDataOffsets']['recirc_n'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Steps']['PointDataOffsets']['recirc_n'][-1] = new_size-1
+
+                h5f["VTKHDF"]['PointData']['time_scale'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['PointData']['time_scale'][-1] = t_scale
+                h5f["VTKHDF"]['Steps']['PointDataOffsets']['time_scale'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Steps']['PointDataOffsets']['time_scale'][-1] = new_size-1
 
 
-    _write_data_xmf(data_file, xmf_file)
+                h5f["VTKHDF"]['Vertices']['Connectivity'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Vertices']['Connectivity'][-1] =  np.arange(shape_n)
+                h5f["VTKHDF"]['Vertices']['Offsets'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Vertices']['Offsets'][-1] = np.arange(1, shape_n+1)
+                h5f["VTKHDF"]['Steps']['CellOffsets'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Steps']['CellOffsets'][-1] = [0,0,0,0]
+                h5f["VTKHDF"]['Steps']['ConnectivityIdOffsets'].resize(new_size, axis=0)
+                h5f["VTKHDF"]['Steps']['ConnectivityIdOffsets'][-1] = [0,0,0,0]
 
 
-def _init_data_h5(h5f, coord, vx, vy, vz, vmag, uid, zone, layer, 
-                  pass_n, recirc_n, reactor_time, t_scale):
+
+
+def _init_data_h5(root, coord, v, vmag, zone, layer, 
+                  pass_n, recirc_n, t_scale):
     '''
-    christ:wq
-
+    init h5, including the root vtk group
     '''
     shape_n = len(coord)
-    h5f.create_dataset('xyz', data=[coord], dtype=np.single,
+    root.attrs["Version"] = (2, 0)
+    type_ASCII = 'vtkPolyData'.encode('ascii')
+    root.attrs.create('Type', type_ASCII, 
+                      dtype=h5py.string_dtype('ascii', len(type_ASCII)))
+    root.create_dataset('NumberofPoints', data=[shape_n], maxshape=(None,), 
+                        dtype=np.uint32)
+    root.create_dataset('Points', data=[coord], maxshape=(None, shape_n, 3), dtype='f')
+
+    vertices = root.create_group('Vertices')
+    vertices.create_dataset('Connectivity', data=[np.arange(shape_n)], 
+                            dtype=np.int32, maxshape=(None, shape_n))
+    vertices.create_dataset('Offsets', data=[np.arange(1, shape_n+1)],
+                            dtype=np.int32, maxshape=(None, shape_n))
+
+    point_data = root.create_group('PointData')
+
+    point_data.create_dataset('v', data=[v], dtype='f',
                        chunks=True, maxshape=(None, shape_n, 3))
-
-    h5f.create_dataset('vx', data=[vx], dtype=np.single,
-                       chunks=True, maxshape=(None, shape_n))
-    h5f.create_dataset('vy', data=[vy], dtype=np.single,
-                       chunks=True, maxshape=(None, shape_n))
-    h5f.create_dataset('vz', data=[vz], dtype=np.single,
-                       chunks=True, maxshape=(None, shape_n))
-    h5f.create_dataset('vmag', data=[vmag], dtype=np.single,
+    point_data.create_dataset('vmag', data=[vmag], dtype='f',
                        chunks=True, maxshape=(None, shape_n))
 
-    h5f.create_dataset('uid', data=[uid], dtype=np.uintc,
+    point_data.create_dataset('zone',  data=[zone], dtype=np.uint8,
                        chunks=True, maxshape=(None, shape_n))
-    h5f.create_dataset('zone',  data=[zone], dtype=np.ubyte,
+    point_data.create_dataset('layer', data=[layer], dtype=np.uint8,
                        chunks=True, maxshape=(None, shape_n))
-    h5f.create_dataset('layer', data=[layer], dtype=np.ubyte,
+    point_data.create_dataset('pass_n', data=[pass_n], dtype=np.uint8,
                        chunks=True, maxshape=(None, shape_n))
-    h5f.create_dataset('pass_n', data=[pass_n], dtype=np.ubyte,
+    point_data.create_dataset('recirc_n', data=[recirc_n], dtype=np.uint8,
                        chunks=True, maxshape=(None, shape_n))
-    h5f.create_dataset('recirc_n', data=[recirc_n], dtype=np.ubyte,
-                       chunks=True, maxshape=(None, shape_n))
-    h5f.create_dataset('reactor_time', data=[reactor_time], dtype=np.double,
+    point_data.create_dataset('time_scale', data=[t_scale], dtype='f',
                        chunks=True, maxshape=(None,))
-    h5f.create_dataset('time_scale', data=[t_scale], dtype=np.single,
-                       chunks=True, maxshape=(None,))
+
+    steps = root.create_group('Steps')
+    steps.attrs['NSteps'] = 1
+    steps.create_dataset('Values', data=[0], maxshape=(None,), dtype=np.uint32)
+    steps.create_dataset('PartOffsets', data=[0], maxshape=(None,), dtype=np.int32)
+    #steps.create_dataset('NumberOfParts', data=[0], maxshape=(None,), dtype='i8')
+    steps.create_dataset('PointOffsets', data=[0], maxshape=(None,), dtype=np.int32)
+    steps.create_dataset('CellOffsets', data=[[0,0,0,0]], maxshape=(None,4), dtype=np.int32)
+    steps.create_dataset('ConnectivityIdOffsets', data=[[0,0,0,0]], 
+                         maxshape=(None,4), dtype=np.int32)
+    point_data_offsets = steps.create_group('PointDataOffsets')
+    point_data_offsets.create_dataset('v', data=[0], 
+                                      maxshape=(None,), dtype=np.int32)
+    point_data_offsets.create_dataset('vmag', data=[0],
+                                      maxshape=(None,), dtype=np.int32)
+    point_data_offsets.create_dataset('zone', data=[0],
+                                      maxshape=(None,), dtype=np.int32)
+    point_data_offsets.create_dataset('layer', data=[0],
+                                      maxshape=(None,), dtype=np.int32)
+    point_data_offsets.create_dataset('pass_n', data=[0],
+                                      maxshape=(None,), dtype=np.int32)
+    point_data_offsets.create_dataset('recirc_n', data=[0],
+                                      maxshape=(None,), dtype=np.int32)
+    point_data_offsets.create_dataset('time_scale', data=[0], maxshape=(None,), 
+                                      dtype=np.int32)
+
 
 
 def _write_data_xmf(data_file, xmf_file):
