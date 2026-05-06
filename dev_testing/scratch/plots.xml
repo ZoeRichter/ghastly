@@ -1,0 +1,167 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<plots>
+  <plot id="1" color_by="material" type="slice" basis="xy">
+    <pixels>1000 1000</pixels>
+    <origin>0 0 483.0</origin>
+    <width>500 500</width>
+    <color id="1" rgb="110 30 129"/>
+    <color id="2" rgb="202 62 114"/>
+    <color id="3" rgb="125 225 225"/>
+    <color id="4" rgb="252 147 102"/>
+    <color id="5" rgb="251 252 191"/>
+    <color id="6" rgb="20 13 53"/>
+    <color id="7" rgb="10 10 14"/>
+    <color id="8" rgb="42 41 58"/>
+    <color id="9" rgb="73 73 102"/>
+    <color id="10" rgb="105 113 136"/>
+    <color id="11" rgb="136 157 168"/>
+    <color id="12" rgb="168 199 199"/>
+    <color id="13" rgb="253 228 225"/>
+    <color id="14" rgb="252 222 219"/>
+    <color id="15" rgb="252 214 210"/>
+    <color id="16" rgb="252 206 202"/>
+    <color id="17" rgb="252 199 194"/>
+    <color id="18" rgb="251 189 189"/>
+    <color id="19" rgb="251 178 186"/>
+    <color id="20" rgb="250 169 183"/>
+    <color id="21" rgb="249 158 180"/>
+    <color id="22" rgb="249 142 175"/>
+    <color id="23" rgb="248 127 169"/>
+    <color id="24" rgb="247 111 163"/>
+    <color id="25" rgb="243 96 159"/>
+    <color id="26" rgb="235 81 156"/>
+    <color id="27" rgb="228 67 153"/>
+    <color id="28" rgb="221 52 151"/>
+    <color id="29" rgb="208 38 144"/>
+    <color id="30" rgb="196 25 137"/>
+    <color id="31" rgb="183 10 130"/>
+    <color id="32" rgb="169 1 125"/>
+    <color id="33" rgb="154 1 123"/>
+    <color id="34" rgb="140 1 121"/>
+    <color id="35" rgb="125 1 119"/>
+    <color id="36" rgb="111 0 116"/>
+  </plot>
+  <plot id="2" color_by="material" type="slice" basis="xy">
+    <pixels>2400 2400</pixels>
+    <origin>0 0 483.0</origin>
+    <width>20 20</width>
+    <color id="1" rgb="110 30 129"/>
+    <color id="2" rgb="202 62 114"/>
+    <color id="3" rgb="125 225 225"/>
+    <color id="4" rgb="252 147 102"/>
+    <color id="5" rgb="251 252 191"/>
+    <color id="6" rgb="20 13 53"/>
+    <color id="7" rgb="10 10 14"/>
+    <color id="8" rgb="42 41 58"/>
+    <color id="9" rgb="73 73 102"/>
+    <color id="10" rgb="105 113 136"/>
+    <color id="11" rgb="136 157 168"/>
+    <color id="12" rgb="168 199 199"/>
+    <color id="13" rgb="253 228 225"/>
+    <color id="14" rgb="252 222 219"/>
+    <color id="15" rgb="252 214 210"/>
+    <color id="16" rgb="252 206 202"/>
+    <color id="17" rgb="252 199 194"/>
+    <color id="18" rgb="251 189 189"/>
+    <color id="19" rgb="251 178 186"/>
+    <color id="20" rgb="250 169 183"/>
+    <color id="21" rgb="249 158 180"/>
+    <color id="22" rgb="249 142 175"/>
+    <color id="23" rgb="248 127 169"/>
+    <color id="24" rgb="247 111 163"/>
+    <color id="25" rgb="243 96 159"/>
+    <color id="26" rgb="235 81 156"/>
+    <color id="27" rgb="228 67 153"/>
+    <color id="28" rgb="221 52 151"/>
+    <color id="29" rgb="208 38 144"/>
+    <color id="30" rgb="196 25 137"/>
+    <color id="31" rgb="183 10 130"/>
+    <color id="32" rgb="169 1 125"/>
+    <color id="33" rgb="154 1 123"/>
+    <color id="34" rgb="140 1 121"/>
+    <color id="35" rgb="125 1 119"/>
+    <color id="36" rgb="111 0 116"/>
+  </plot>
+  <plot id="3" color_by="material" type="slice" basis="xy">
+    <pixels>1000 1000</pixels>
+    <origin>99.933 60.839 933.0659999999999</origin>
+    <width>10 10</width>
+    <color id="1" rgb="110 30 129"/>
+    <color id="2" rgb="202 62 114"/>
+    <color id="3" rgb="125 225 225"/>
+    <color id="4" rgb="252 147 102"/>
+    <color id="5" rgb="251 252 191"/>
+    <color id="6" rgb="20 13 53"/>
+    <color id="7" rgb="10 10 14"/>
+    <color id="8" rgb="42 41 58"/>
+    <color id="9" rgb="73 73 102"/>
+    <color id="10" rgb="105 113 136"/>
+    <color id="11" rgb="136 157 168"/>
+    <color id="12" rgb="168 199 199"/>
+    <color id="13" rgb="253 228 225"/>
+    <color id="14" rgb="252 222 219"/>
+    <color id="15" rgb="252 214 210"/>
+    <color id="16" rgb="252 206 202"/>
+    <color id="17" rgb="252 199 194"/>
+    <color id="18" rgb="251 189 189"/>
+    <color id="19" rgb="251 178 186"/>
+    <color id="20" rgb="250 169 183"/>
+    <color id="21" rgb="249 158 180"/>
+    <color id="22" rgb="249 142 175"/>
+    <color id="23" rgb="248 127 169"/>
+    <color id="24" rgb="247 111 163"/>
+    <color id="25" rgb="243 96 159"/>
+    <color id="26" rgb="235 81 156"/>
+    <color id="27" rgb="228 67 153"/>
+    <color id="28" rgb="221 52 151"/>
+    <color id="29" rgb="208 38 144"/>
+    <color id="30" rgb="196 25 137"/>
+    <color id="31" rgb="183 10 130"/>
+    <color id="32" rgb="169 1 125"/>
+    <color id="33" rgb="154 1 123"/>
+    <color id="34" rgb="140 1 121"/>
+    <color id="35" rgb="125 1 119"/>
+    <color id="36" rgb="111 0 116"/>
+  </plot>
+  <plot id="4" color_by="material" type="slice" basis="xz">
+    <pixels>1000 2600</pixels>
+    <origin>0 0 483.0</origin>
+    <width>500 1300</width>
+    <color id="1" rgb="110 30 129"/>
+    <color id="2" rgb="202 62 114"/>
+    <color id="3" rgb="125 225 225"/>
+    <color id="4" rgb="252 147 102"/>
+    <color id="5" rgb="251 252 191"/>
+    <color id="6" rgb="20 13 53"/>
+    <color id="7" rgb="10 10 14"/>
+    <color id="8" rgb="42 41 58"/>
+    <color id="9" rgb="73 73 102"/>
+    <color id="10" rgb="105 113 136"/>
+    <color id="11" rgb="136 157 168"/>
+    <color id="12" rgb="168 199 199"/>
+    <color id="13" rgb="253 228 225"/>
+    <color id="14" rgb="252 222 219"/>
+    <color id="15" rgb="252 214 210"/>
+    <color id="16" rgb="252 206 202"/>
+    <color id="17" rgb="252 199 194"/>
+    <color id="18" rgb="251 189 189"/>
+    <color id="19" rgb="251 178 186"/>
+    <color id="20" rgb="250 169 183"/>
+    <color id="21" rgb="249 158 180"/>
+    <color id="22" rgb="249 142 175"/>
+    <color id="23" rgb="248 127 169"/>
+    <color id="24" rgb="247 111 163"/>
+    <color id="25" rgb="243 96 159"/>
+    <color id="26" rgb="235 81 156"/>
+    <color id="27" rgb="228 67 153"/>
+    <color id="28" rgb="221 52 151"/>
+    <color id="29" rgb="208 38 144"/>
+    <color id="30" rgb="196 25 137"/>
+    <color id="31" rgb="183 10 130"/>
+    <color id="32" rgb="169 1 125"/>
+    <color id="33" rgb="154 1 123"/>
+    <color id="34" rgb="140 1 121"/>
+    <color id="35" rgb="125 1 119"/>
+    <color id="36" rgb="111 0 116"/>
+  </plot>
+</plots>

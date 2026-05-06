@@ -1,0 +1,183 @@
+<?xml version='1.0' encoding='utf-8'?>
+<materials>
+  <material id="1" name="mat1">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="2" name="mat2">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="3" name="mat3">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="4" name="mat4">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="5" name="mat5">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="6" name="mat6">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="7" name="ndep1">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="8" name="ndep2">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="9" name="ndep3">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="10" name="ndep4">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="11" name="ndep5">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="12" name="ndep6">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="13" name="dep229936">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="14" name="dep229937">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="15" name="dep229938">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="16" name="dep229939">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="17" name="dep229940">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="18" name="dep229941">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="19" name="dep229942">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="20" name="dep229943">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="21" name="dep229944">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="22" name="dep229945">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="23" name="dep229946">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="24" name="dep229947">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="25" name="dep229948">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="26" name="dep229949">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="27" name="dep229950">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="28" name="dep229951">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="29" name="dep229952">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="30" name="dep229953">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="31" name="dep229954">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="32" name="dep229955">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="33" name="dep229956">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="34" name="dep229957">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="35" name="dep229958">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+  <material id="36" name="dep229959">
+    <density units="sum"/>
+    <nuclide name="C12" ao="0.988922"/>
+    <nuclide name="C13" ao="0.011078"/>
+  </material>
+</materials>

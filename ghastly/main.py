@@ -613,3 +613,14 @@ def _templater(params, file, template_name):
     with open(file, mode='w') as f:
         f.write(text)
     return text
+
+def write_core_periphery(input_file, periph_file, periph_template):
+    '''
+    Given Ghastly input file, write the core periphery (i.e., everything
+    outside the active core) for an openmc model.  This only needs to be 
+    created once for a given problem.
+    '''
+    input_block = read_input.InputBlock(input_file)
+    sim_block = input_block.create_obj()
+
+
