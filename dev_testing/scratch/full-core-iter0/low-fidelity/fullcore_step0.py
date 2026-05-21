@@ -2,6 +2,8 @@ import openmc
 import openmc.deplete
 import numpy as np
 import math
+import json
+import sys
 from itertools import product
 from matplotlib import colormaps
 
@@ -19,6 +21,7 @@ rng = np.random.default_rng()
 n_peb = 223000
 pf_target = 0.6
 peb_R = 3.0
+peb_D = 2*peb_R
 fueled_R = 2.5
 triso_R = [0.02125, 0.04275]
 n_triso = 19000
@@ -28,7 +31,8 @@ nd_comps = ["ndep"+str(int(i+1)) for i in range(n_pass)]
 x_c = 0
 y_c = 0
 active_r = 120
-active_zmax = (4*n_peb*peb_R**3)/(3*pf_target*active_r**2)
+active_zmax = 1010
+bed_zmax = (4*n_peb*peb_R**3)/(3*pf_target*active_r**2)
 active_zmin = 0
 refl_rin = 120
 skirt_rin = 125
@@ -43,6 +47,66 @@ rpv_rout = 230
 rpv_zmax = 1120
 rpv_zmin = -154
 
+zones = np.array([10, 15, 20])*peb_D
+
+bed_sides = openmc.ZCylinder(x0=x_c, y0=y_c, r=active_r)
+bed_top = openmc.ZPlane(z0=bed_zmax)
+bed_bot = openmc.ZPlane(z0=active_zmin)
+bed_reg = -bed_sides & -bed_top & +bed_bot
+peb_xyz = openmc.model.pack_spheres(radius=peb_R,
+                                     region=bed_reg,
+                                     num_spheres=n_peb,
+                                     seed = int(rng.integers(10000,1000000)))
+peb_xyz_file = "peb_xyz_" + str(rng.integers(1000,10000)) + ".csv"
+with open(peb_xyz_file, mode='w') as f:
+    np.savetxt(f, peb_xyz)
+
+peb_zmax = max([xyz[2] for xyz in peb_xyz])
+top_zone1 = []
+top_zone2 = []
+top_zone3 = []
+for i, xyz in enumerate(peb_xyz):
+    if xyz[2] >= peb_zmax - 3*peb_R:
+        r = (xyz[0]**2 + xyz[1]**2)**0.5
+        if r <= zones[0]:
+            top_zone1.append(i)
+        elif r > zones[0] and r <= zones[1]:
+            top_zone2.append(i)
+        elif r > zones[1]:
+            top_zone3.append(i)
+assert len(top_zone1) > 3**(n_pass-1)
+assert len(top_zone2) > 3**(n_pass-1)
+assert len(top_zone3) > 3**(n_pass-1)
+
+zone1_i = rng.choice(top_zone1, 3**(n_pass-1), replace=False)
+zone2_i = rng.choice(top_zone2, 3**(n_pass-1), replace=False)
+zone3_i = rng.choice(top_zone3, 3**(n_pass-1), replace=False)
+
+dep_i = np.concatenate((zone1_i, zone2_i, zone3_i))
+
+mask = np.ones(len(peb_xyz), dtype=bool)
+mask[dep_i] = False
+ndep_i = np.arange(len(peb_xyz))[mask]
+
+dep_log = {int(i) : {'history' : "hist_",
+                'i_zone' : 0} for i in dep_i}
+for i in dep_i:
+    xi = peb_xyz[i][0]
+    yi = peb_xyz[i][1]
+    zi = peb_xyz[i][2]
+    r = (xi**2 + yi**2)**0.5
+    if r <= zones[0]:
+        dep_log[i]['history'] += '1'
+        dep_log[i]['i_zone'] = 0
+    elif r > zones[0] and r <= zones[1]:
+        dep_log[i]['history'] += '2'
+        dep_log[i]['i_zone'] = 1
+    elif r > zones[1]:
+        dep_log[i]['history'] += '3'
+        dep_log[i]['i_zone'] = 2
+
+with open('dep_log0.json', mode='w') as f:
+    json.dump(dep_log, f, indent=4)
 
 ###############------------------- MATERIALS ------------------###############
 
@@ -127,6 +191,21 @@ ndep6.add_s_alpha_beta('c_Graphite')
 ndep6.depletable = False
 ndep6.temperature = 1088.15 #K
 
+uco_vol = (3**(n_pass-1))*n_triso*(4/3)*np.pi*triso_R[0]**3
+dep_mats = []
+for i in range(len(zones)):
+    mat_name = 'hist_' + str(i+1)
+    dep_mats.append(openmc.Material(name=mat_name))
+    dep_mats[-1].set_density('g/cm3', 10.4)
+    dep_mats[-1].add_nuclide("U235", 0.1386, percent_type='wo')
+    dep_mats[-1].add_nuclide("U238",0.7559, percent_type='wo')
+    dep_mats[-1].add_element("O", 0.06025, percent_type='wo')
+    dep_mats[-1].add_element('C', 0.04523, percent_type='wo')
+    dep_mats[-1].add_s_alpha_beta('c_Graphite')
+    dep_mats[-1].temperature = 1088.15 #K
+    dep_mats[-1].volume = uco_vol
+    dep_mats[-1].depletable = True
+
 buffer = openmc.Material(name='buffer')
 buffer.set_density('g/cm3', 1.05)
 buffer.add_element('C', 0.9999987, percent_type='wo')
@@ -160,6 +239,7 @@ triso_layer_mat = openmc.Material.mix_materials([buffer, pyc, sic],
 triso_layer_mat.add_s_alpha_beta('c_Graphite')
 triso_layer_mat.temperature = 1088.15 #K
 triso_layer_mat.name = 'triso_layer'
+triso_layer_mat.depletable = False
 
 
 graphite = openmc.Material(name='graphite')
@@ -168,13 +248,15 @@ graphite.temperature = 778.15 #K
 graphite.add_element('C', 0.9999985, percent_type='wo')
 graphite.add_element('B', 1.5*10**(-6), percent_type='wo')
 graphite.add_s_alpha_beta('c_Graphite')
+graphite.depletable = False
 
-ndepgraphite = openmc.Material(name='ndepgraphite')
-ndepgraphite.set_density('g/cm3', 1.74)
-ndepgraphite.temperature = 1088.15 #K 
-ndepgraphite.add_element('C', 0.9999987, percent_type='wo')
-ndepgraphite.add_element('B', 1.3*10**(-6), percent_type='wo')
-ndepgraphite.add_s_alpha_beta('c_Graphite')
+pebgraphite = openmc.Material(name='pebgraphite')
+pebgraphite.set_density('g/cm3', 1.74)
+pebgraphite.temperature = 1088.15 #K 
+pebgraphite.add_element('C', 0.9999987, percent_type='wo')
+pebgraphite.add_element('B', 1.3*10**(-6), percent_type='wo')
+pebgraphite.add_s_alpha_beta('c_Graphite')
+pebgraphite.depletable = False
 
 mixgraph = openmc.Material(name='mixgraph')
 mixgraph.set_density('g/cm3', 1.8)
@@ -188,30 +270,33 @@ b4c.add_nuclide('B10', 0.1592, percent_type='ao')
 b4c.add_nuclide('B11', 0.6408, percent_type='ao')
 b4c.add_element('C', 0.2, percent_type='ao')
 
-rcs_vol = 9*169.2*np.pi*(5**2 - 4.6**2)
-skirt_vol = (active_zmax - active_zmin)*np.pi*(skirt_rout**2 - skirt_rin**2)
+b4c_wo = 0.0004
+graph_wo = 1 - b4c_wo
 
 bgraphite = openmc.Material.mix_materials([mixgraph, b4c],
-                                          [1-(rcs_vol/skirt_vol), 
-                                           rcs_vol/skirt_vol], 'vo')
+                                          [graph_wo, 
+                                           b4c_wo], 'wo')
 
 bgraphite.add_s_alpha_beta('c_Graphite')
 bgraphite.temperature = 778.15 #K
 bgraphite.name = 'bgraphite'
+bgraphite.depletable = False
 
 
 he = openmc.Material(name='He')
 he.set_density('atom/b-cm', 0.0006)
 he.add_element('He', 1.0, percent_type='ao')
 he.temperature = 778.15 #K
+he.depletable = False
 
 ss_iron = openmc.Material(name='ss_fe')
 ss_iron.add_element('Fe', 1.0, 'ao')
 ss_iron.set_density('g/cm3', 7.8)
 ss_iron.temperature = 513.5
+ss_iron.depletable = False
 
-mats = openmc.Materials([ndep1, ndep2, ndep3, ndep4, ndep5, ndep6,
-                         triso_layer_mat, graphite, ndepgraphite, 
+mats = openmc.Materials(dep_mats + [ndep1, ndep2, ndep3, ndep4, ndep5, ndep6,
+                         triso_layer_mat, graphite, pebgraphite, 
                          bgraphite, he, ss_iron])
 openmc.Materials(mats).export_to_xml()
 
@@ -225,7 +310,7 @@ matnames = np.array([mat.name for mat in mats])
 
 graph = 'graphite'
 bgraph = 'bgraphite'
-ndepgraph = 'ndepgraphite'
+pebgraph = 'pebgraphite'
 triso_layer = 'triso_layer'
 he = 'He'
 ss = 'ss_fe'
@@ -234,25 +319,26 @@ ss = 'ss_fe'
 #--- peripheral material indices and material colors ---#
 
 n_periph = 6
+n_dep = len(zones)
 
-
-ndep_c = np.linspace(0.05, 0.75, n_pass)
-periph_c = np.linspace(0.10, 1.0, n_periph)
+dep_c = np.linspace(0.65, 0.95, n_dep)
+ndep_c = np.linspace(0.30, 0.80, n_pass)
+periph_c = np.linspace(0.0, 0.95, n_periph)
 
 periph_rgb = 255*colormaps['magma'](periph_c)[:, 0:-1]
-nd_rgb = 255*colormaps['bone_r'](ndep_c)[:, 0:-1]
-
+nd_rgb = 255*colormaps['gray_r'](ndep_c)[:, 0:-1]
+dep_rgb = 255*colormaps['rainbow_r'](dep_c)[:, 0:-1]
 
 i_graph = np.argmax(matnames==graph)
 i_bgraph = np.argmax(matnames==bgraph)
-i_ndepgraph = np.argmax(matnames==ndepgraph)
+i_pebgraph = np.argmax(matnames==pebgraph)
 i_layer = np.argmax(matnames==triso_layer)
 i_he = np.argmax(matnames==he)
 i_ss = np.argmax(matnames==ss)
 
 colors = {mats[i_graph] : tuple(map(int, periph_rgb[1])),
           mats[i_bgraph] : tuple(map(int, periph_rgb[3])),
-          mats[i_ndepgraph] : tuple(map(int, periph_rgb[2])),
+          mats[i_pebgraph] : tuple(map(int, periph_rgb[2])),
           mats[i_layer] : tuple(map(int, periph_rgb[4])),
           mats[i_he] : tuple(map(int, periph_rgb[5])),
           mats[i_ss] : tuple(map(int, periph_rgb[0]))}
@@ -260,6 +346,12 @@ colors = {mats[i_graph] : tuple(map(int, periph_rgb[1])),
 for i, nd_comp in enumerate(nd_comps):
     i_uco = np.argmax(matnames == nd_comp)
     colors[mats[i_uco]] = tuple(map(int, nd_rgb[i]))
+
+for i in range(len(zones)):
+    uco_name = 'hist_' + str(i+1)
+    i_uco = np.argmax(matnames == uco_name)
+    colors[mats[i_uco]] = tuple(map(int, dep_rgb[i]))
+
 
 
 ###############------------------- GEOMETRY -------------------###############
@@ -297,13 +389,55 @@ for u in ndep_triso_univs:
                                                 ll_peb,
                                                 pitch_peb,
                                                 shape_peb,
-                                                mats[i_ndepgraph])
+                                                mats[i_pebgraph])
     cells = [openmc.Cell(fill=lattice, region = fueled_reg),
-             openmc.Cell(fill=mats[i_ndepgraph], region = unfueled_reg)]
+             openmc.Cell(fill=mats[i_pebgraph], region = unfueled_reg)]
     univ = openmc.Universe(cells=cells)
     ndep_univs.append(univ)
 
+pebbles = []
+for xyz in ndep_xyz:
+    i_pass = rng.integers(0, n_pass)
+    pebbles.append(openmc.model.TRISO(peb_R,
+                                      ndep_univs[i_pass],
+                                      xyz))
+ndep_log = {}
+pebbles = []
+for i in ndep_i:
+    i_pass = rng.integers(0, n_pass)
+    ndep_log[int(i)] = int(i_pass)
+    pebbles.append(openmc.model.TRISO(peb_R,
+                                      ndep_univs[i_pass],
+                                      peb_xyz[i]))
+with open('ndep_log0.json', mode='w') as f:
+    json.dump(ndep_log, f, indent=4)
 
+# depleting
+dep_triso_univs = []
+for i in range(len(zones)):
+    dep_name = 'hist_' + str(i)
+    i_uco = np.argmax(matnames == dep_name)
+    cells = [openmc.Cell(fill=mats[i_uco], region=-uco_bounds),
+             openmc.Cell(fill=mats[i_layer], region=+uco_bounds)]
+    dep_triso_univs.append(openmc.Universe(cells=cells)) 
+
+dep_univs = []
+for u in dep_triso_univs: 
+    trisos = [openmc.model.TRISO(triso_R[1], u, c) for c in triso_centers]
+    lattice = openmc.model.create_triso_lattice(trisos,
+                                                ll_peb,
+                                                pitch_peb,
+                                                shape_peb,
+                                                mats[i_pebgraph])
+    cells = [openmc.Cell(fill=lattice, region = fueled_reg),
+             openmc.Cell(fill=mats[i_pebgraph], region = unfueled_reg)]
+    univ = openmc.Universe(cells=cells)
+    dep_univs.append(univ)
+
+for i, info in dep_log.items():
+    pebbles.append(openmc.model.TRISO(peb_R, 
+                                      dep_univs[info['i_zone']], 
+                                      peb_xyz[i]))
 
 #--- core periphery ---#
 
@@ -328,21 +462,6 @@ coolch_voids = [openmc.ZCylinder(x0=xy[0], y0=xy[1],
                 for i, xy in enumerate(coolch_xy)]
 
 active_reg = -active_out & +active_bot & -active_top
-
-ndep_xyz = openmc.model.pack_spheres(radius=peb_R,
-                                     region=active_reg,
-                                     num_spheres=n_peb,
-                                     seed = int(rng.integers(10000,1000000)))
-ndep_xyz_file = "ndep_xyz_" + str(rng.integers(1000,10000)) + ".csv"
-with open(ndep_xyz_file, mode='w') as f:
-    np.savetxt(f, ndep_xyz)
-
-pebbles = []
-for xyz in ndep_xyz:
-    i_pass = rng.integers(0, n_pass)
-    pebbles.append(openmc.model.TRISO(peb_R,
-                                      ndep_univs[i_pass],
-                                      xyz))
 
 subskirt_reg = +refl_in & -skirt_in & +active_bot & -active_top
 skirt_reg = +skirt_in & -skirt_out & +active_bot & -active_top
@@ -394,16 +513,16 @@ universe = openmc.Universe(cells = cells)
 geometry = openmc.Geometry(universe)
 geometry.export_to_xml()
 
-
 settings = openmc.Settings()
-settings.run_mode = 'plot'
-settings.temperature={'method':'interpolation'}
+settings.temperature={'method':'interpolation', 'range':(294, 1200)}
+settings.output = {'summary': False}
 settings.verbosity=7
-settings.particles=(20000)
-settings.generations_per_batch = 5
-settings.batches = 250
-settings.inactive = 50
+settings.particles=(15000)
+settings.generations_per_batch = 3
+settings.batches = 150
+settings.inactive = 25
 settings.export_to_xml()
+
 
 xyplot = openmc.SlicePlot()
 xyplot.basis='xy'
@@ -432,20 +551,20 @@ xzplot.colors = colors
 
 plots = openmc.Plots([xyplot, xyplotzoom, xzplot])
 plots.export_to_xml()
-'''
-model = openmc.model.Model(geometry=geometry, settings=settings, materials=mats)
-fluxes, micros = openmc.deplete.get_microxs_and_flux(model, mats, energies='SCALE-252')
-print()
-print(fluxes)
-print()
-print(micros)
-for i, mat in enumerate(matnames):
-    flux_name = mat+'_flux.csv'
-    with open(flux_name, mode='w') as fflux:
-        np.savetxt(fflux, fluxes[i])
-micros.to_csv("micros.csv")
-'''
-openmc.run()
+
+egroup_81_edges = np.loadtxt('81-group-HTGR.csv', skiprows=1, delimiter=' ')[:,0]
+egroup_81 = openmc.mgxs.EnergyGroups(egroup_81_edges)
+power = 165*(10**6) # 165 MW in Watts
+timesteps = [1] # days
+model = openmc.model.Model(geometry=geometry, 
+                           settings=settings, 
+                           materials=mats)
+model.convert_to_multigroup(groups = egroup_81)
+op = openmc.deplete.CoupledOperator(model)
+openmc.deplete.CECMIntegrator(op, 
+                              timesteps, 
+                              power, 
+                              timestep_units='d').integrate()
 
 
 

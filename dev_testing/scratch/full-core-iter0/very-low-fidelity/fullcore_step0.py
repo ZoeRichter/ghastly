@@ -32,7 +32,8 @@ nd_comps = ["ndep"+str(int(i+1)) for i in range(n_pass)]
 x_c = 0
 y_c = 0
 active_r = 120
-active_zmax = (4*n_peb*peb_R**3)/(3*pf*active_r**2)
+active_zmax = 1010
+bed_zmax = (4*n_peb*peb_R**3)/(3*pf*active_r**2)
 active_zmin = 0
 refl_rin = 120
 skirt_rin = 125
@@ -47,13 +48,10 @@ rpv_rout = 230
 rpv_zmax = 1120
 rpv_zmin = -154
 
-zones = [10, 15, 20]
+zones = np.array([10, 15, 20])*peb_D
 
-N_latt = int((active_r-peb_R)/peb_D)
-latt_R = int(100*0.5*(active_r/(N_latt+0.5)))/100
 latt_R = 3.098
 latt_D = 2*latt_R
-print(f"Lattice pitch = {latt_D}")
 
 a0 = latt_D*np.array([0, 0, 0.5])
 b0 = latt_D*np.array([0.5, 0.5*3**0.5, 0.5])
@@ -88,69 +86,87 @@ layer_a0 = [ai for ai in layer_a0
             if ((ai[0]**2 + ai[1]**2)**0.5 + peb_R) < active_r]
 layer_b0 = [bi for bi in layer_b0 
             if ((bi[0]**2 + bi[1]**2)**0.5 + peb_R) < active_r]
-N_layer_a = int((active_zmax - latt_D)/layer_z_offset[2])
-N_layer_b = int((active_zmax - layer_b0_offset[2] - latt_R)/layer_z_offset[2])
+N_layer_a = int((bed_zmax - latt_D)/layer_z_offset[2])
+N_layer_b = int((bed_zmax - layer_b0_offset[2] - latt_R)/layer_z_offset[2])
+layer_a_z = ([a0[2]] + 
+             [a0[2] + (i+1)*layer_z_offset[2] for i in range(N_layer_a)])
+layer_b_z = ([a0[2]+layer_b0_offset[2]] + 
+             [a0[2]+layer_b0_offset[2] + (i+1)*layer_z_offset[2] 
+              for i in range(N_layer_b)])
 
-ndep_xyz = np.concatenate((layer_a0, layer_b0))
+
+peb_xyz = np.concatenate((layer_a0, layer_b0))
 for i in range(N_layer_a):
-    ndep_xyz = np.concatenate((ndep_xyz, 
+    peb_xyz = np.concatenate((peb_xyz, 
                                layer_a0 + (i+1)*layer_z_offset))
 for i in range(N_layer_b):
-    ndep_xyz = np.concatenate((ndep_xyz, 
+    peb_xyz = np.concatenate((peb_xyz, 
                                layer_b0 + (i+1)*layer_z_offset))
-print(f"{len(ndep_xyz)} pebbles in lattice.")
-print(f"True pf = {(len(ndep_xyz)*4/3*peb_R**3)/(active_zmax*active_r**2)}.")
+print(f"{len(peb_xyz)} pebbles in lattice.")
+print(f"True pf = {(len(peb_xyz)*4/3*peb_R**3)/(bed_zmax*active_r**2)}.")
+
+core_len = bed_zmax - active_zmin # cm
+transit_time = 6*30.5 # days
+peb_vel = core_len/transit_time # cm/days
+layer_t = round(layer_z_offset[2]/peb_vel) # days
+print(f"Pebble velocity is {peb_vel} cm/day.")
+print(f"It takes approx. {layer_t} days to move layer positions.")
 
 # select starting depleting pebbles to pull from lattice
-dep_z = a0[2] + N_layer_a*layer_z_offset[2]
-dep_layer = [ai for ai in ndep_xyz if ai[2] == dep_z]
-ndep_xyz = [ai for ai in ndep_xyz if ai[2] != dep_z]
+peb_zmax = a0[2] + N_layer_a*layer_z_offset[2]
+top_zone1 = []
+top_zone2 = []
+top_zone3 = []
+for i, xyz in enumerate(peb_xyz):
+    if xyz[2] == peb_zmax:
+        r = (xyz[0]**2 + xyz[1]**2)**0.5
+        if r <= zones[0]:
+            top_zone1.append(i)
+        elif r > zones[0] and r <= zones[1]:
+            top_zone2.append(i)
+        elif r > zones[1]:
+            top_zone3.append(i)
+assert len(top_zone1) > 3**(n_pass-1)
+assert len(top_zone2) > 3**(n_pass-1)
+assert len(top_zone3) > 3**(n_pass-1)
 
-dep_zone1 = [dep for dep in dep_layer 
-             if (dep[0]**2 + dep[1]**2)**0.5 <= zones[0]*peb_D]
-dep_zone2 = [dep for dep in dep_layer
-             if (dep[0]**2 + dep[1]**2)**0.5 > zones[0]*peb_D 
-             and (dep[0]**2 + dep[1]**2)**0.5 <= zones[1]*peb_D]
-dep_zone3 = [dep for dep in dep_layer
-             if (dep[0]**2 + dep[1]**2)**0.5 > zones[1]*peb_D]
+zone1_i = rng.choice(top_zone1, 3**(n_pass-1), replace=False)
+zone2_i = rng.choice(top_zone2, 3**(n_pass-1), replace=False)
+zone3_i = rng.choice(top_zone3, 3**(n_pass-1), replace=False)
 
-i_zone1 = rng.choice(range(len(dep_zone1)), 
-                     size = int(3**(n_pass-1)), replace=False)
-i_zone2 = rng.choice(range(len(dep_zone2)), 
-                     size = int(3**(n_pass-1)), replace=False)
-i_zone3 = rng.choice(range(len(dep_zone3)), 
-                     size = int(3**(n_pass-1)), replace=False)
-dep_zone1 = [dep_zone1[i] for i in i_zone1]
-dep_zone2 = [dep_zone2[i] for i in i_zone2]
-dep_zone3 = [dep_zone3[i] for i in i_zone3]
-dep_xyz = np.concatenate((dep_zone1, dep_zone2, dep_zone3))
-with open("dep_latt.csv", mode = 'w') as f:
-    np.savetxt(f, dep_xyz)
 
-for ai in dep_layer:
-    if np.any(np.all(dep_xyz == ai, axis = 1)):
-        pass
-    else:
-        ndep_xyz.append(ai)
-with open('ndep_latt.csv', mode='w') as f:
-    np.savetxt(f, ndep_xyz)
+dep_i = np.concatenate((zone1_i, zone2_i, zone3_i))
 
-dep_log = {i : {'history' : "hist_",
-                'i_zone' : 0} for i in range(len(dep_xyz))}
-for i, dep in enumerate(dep_xyz):
-    r = (dep[0]**2 + dep[1]**2)**0.5
-    if r <= zones[0]*peb_D:
+mask = np.ones(len(peb_xyz), dtype=bool)
+mask[dep_i] = False
+ndep_i = np.arange(len(peb_xyz))[mask]
+
+with open("peb_latt.csv", mode = 'w') as f:
+    np.savetxt(f, peb_xyz)
+
+
+dep_log = {int(i) : {'history' : "hist_",
+                'i_zone' : 0} for i in dep_i}
+for i in dep_i:
+    xi = peb_xyz[i][0]
+    yi = peb_xyz[i][1]
+    zi = peb_xyz[i][2]
+    r = (xi**2 + yi**2)**0.5
+    if r <= zones[0]:
         dep_log[i]['history'] += '1'
         dep_log[i]['i_zone'] = 0
-    if r > zones[0]*peb_D and r <= zones[1]*peb_D:
+    elif r > zones[0] and r <= zones[1]:
         dep_log[i]['history'] += '2'
         dep_log[i]['i_zone'] = 1
-    elif r > zones[1]*peb_D:
+    elif r > zones[1]:
         dep_log[i]['history'] += '3'
         dep_log[i]['i_zone'] = 2
 
-with open('dep_log.json', mode='w') as f:
+with open('dep_log0.json', mode='w') as f:
     json.dump(dep_log, f, indent=4)
+
+#for i, z in enumerate(layer_a_z):
+    #print(z, layer_a_z[i-int(dep_step/layer_t)])
 
 ###############------------------- MATERIALS ------------------###############
 
@@ -293,19 +309,13 @@ graphite.add_element('C', 0.9999985, percent_type='wo')
 graphite.add_element('B', 1.5*10**(-6), percent_type='wo')
 graphite.add_s_alpha_beta('c_Graphite')
 
-ndepgraphite = openmc.Material(name='ndepgraphite')
-ndepgraphite.set_density('g/cm3', 1.74)
-ndepgraphite.temperature = 1088.15 #K 
-ndepgraphite.add_element('C', 0.9999987, percent_type='wo')
-ndepgraphite.add_element('B', 1.3*10**(-6), percent_type='wo')
-ndepgraphite.add_s_alpha_beta('c_Graphite')
+pebgraphite = openmc.Material(name='pebgraphite')
+pebgraphite.set_density('g/cm3', 1.74)
+pebgraphite.temperature = 1088.15 #K 
+pebgraphite.add_element('C', 0.9999987, percent_type='wo')
+pebgraphite.add_element('B', 1.3*10**(-6), percent_type='wo')
+pebgraphite.add_s_alpha_beta('c_Graphite')
 
-depgraphite = openmc.Material(name='depgraphite')
-depgraphite.set_density('g/cm3', 1.74)
-depgraphite.temperature = 1088.15 #K 
-depgraphite.add_element('C', 0.9999987, percent_type='wo')
-depgraphite.add_element('B', 1.3*10**(-6), percent_type='wo')
-depgraphite.add_s_alpha_beta('c_Graphite')
 
 mixgraph = openmc.Material(name='mixgraph')
 mixgraph.set_density('g/cm3', 1.8)
@@ -319,12 +329,12 @@ b4c.add_nuclide('B10', 0.1592, percent_type='ao')
 b4c.add_nuclide('B11', 0.6408, percent_type='ao')
 b4c.add_element('C', 0.2, percent_type='ao')
 
-rcs_vol = 9*80*np.pi*(5**2 - 4.6**2)
-skirt_vol = (active_zmax - active_zmin)*np.pi*(skirt_rout**2 - skirt_rin**2)
+b4c_frac = 0.0004
+graph_frac = 1-b4c_frac
 
 bgraphite = openmc.Material.mix_materials([mixgraph, b4c],
-                                          [1-(rcs_vol/skirt_vol), 
-                                           rcs_vol/skirt_vol], 'vo')
+                                          [graph_frac, 
+                                           b4c_frac], 'wo')
 
 bgraphite.add_s_alpha_beta('c_Graphite')
 bgraphite.temperature = 778.15 #K
@@ -342,7 +352,7 @@ ss_iron.set_density('g/cm3', 7.8)
 ss_iron.temperature = 513.5
 
 mats = openmc.Materials(dep_mats + [ndep1, ndep2, ndep3, ndep4, ndep5, ndep6,
-                         triso_layer_mat, graphite, ndepgraphite, depgraphite, 
+                         triso_layer_mat, graphite, pebgraphite, 
                          bgraphite, he, ss_iron])
 openmc.Materials(mats).export_to_xml()
 
@@ -356,8 +366,7 @@ matnames = np.array([mat.name for mat in mats])
 
 graph = 'graphite'
 bgraph = 'bgraphite'
-ndepgraph = 'ndepgraphite'
-depgraph = 'depgraphite'
+pebgraph = 'pebgraphite'
 triso_layer = 'triso_layer'
 he = 'He'
 ss = 'ss_fe'
@@ -368,28 +377,24 @@ ss = 'ss_fe'
 n_periph = 6
 n_dep = len(zones)
 
-dep_c = np.linspace(0.10, 0.90, n_dep)
-ndep_c = np.linspace(0.05, 0.75, n_pass)
-periph_c = np.linspace(0.10, 1.0, n_periph)
+dep_c = np.linspace(0.65, 0.95, n_dep)
+ndep_c = np.linspace(0.30, 0.80, n_pass)
+periph_c = np.linspace(0.0, 0.95, n_periph)
 
 periph_rgb = 255*colormaps['magma'](periph_c)[:, 0:-1]
-nd_rgb = 255*colormaps['bone_r'](ndep_c)[:, 0:-1]
-dep_rgb = 255*colormaps['RdPu'](dep_c)[:, 0:-1]
-dpeb_color = (125, 225, 225)
-
+nd_rgb = 255*colormaps['gray_r'](ndep_c)[:, 0:-1]
+dep_rgb = 255*colormaps['rainbow_r'](dep_c)[:, 0:-1]
 
 i_graph = np.argmax(matnames==graph)
 i_bgraph = np.argmax(matnames==bgraph)
-i_ndepgraph = np.argmax(matnames==ndepgraph)
-i_depgraph = np.argmax(matnames==depgraph)
+i_pebgraph = np.argmax(matnames==pebgraph)
 i_layer = np.argmax(matnames==triso_layer)
 i_he = np.argmax(matnames==he)
 i_ss = np.argmax(matnames==ss)
 
 colors = {mats[i_graph] : tuple(map(int, periph_rgb[1])),
           mats[i_bgraph] : tuple(map(int, periph_rgb[3])),
-          mats[i_ndepgraph] : tuple(map(int, periph_rgb[2])),
-          mats[i_depgraph] : dpeb_color,
+          mats[i_pebgraph] : tuple(map(int, periph_rgb[2])),
           mats[i_layer] : tuple(map(int, periph_rgb[4])),
           mats[i_he] : tuple(map(int, periph_rgb[5])),
           mats[i_ss] : tuple(map(int, periph_rgb[0]))}
@@ -439,23 +444,24 @@ for u in ndep_triso_univs:
                                                 ll_peb,
                                                 pitch_peb,
                                                 shape_peb,
-                                                mats[i_ndepgraph])
+                                                mats[i_pebgraph])
     cells = [openmc.Cell(fill=lattice, region = fueled_reg),
-             openmc.Cell(fill=mats[i_ndepgraph], region = unfueled_reg)]
+             openmc.Cell(fill=mats[i_pebgraph], region = unfueled_reg)]
     univ = openmc.Universe(cells=cells)
     ndep_univs.append(univ)
 
 
-ndep_log = []
+ndep_log = {}
 pebbles = []
-for xyz in ndep_xyz:
+for i in ndep_i:
     i_pass = rng.integers(0, n_pass)
-    ndep_log.append(i_pass)
+    ndep_log[int(i)] = int(i_pass)
     pebbles.append(openmc.model.TRISO(peb_R,
                                       ndep_univs[i_pass],
-                                      xyz))
-with open('ndep_log.csv', mode='w') as f:
-    np.savetxt(f, ndep_log)
+                                      peb_xyz[i]))
+with open('ndep_log0.json', mode='w') as f:
+    json.dump(ndep_log, f, indent=4)
+
 # depleting
 dep_triso_univs = []
 for i in range(len(zones)):
@@ -472,16 +478,16 @@ for u in dep_triso_univs:
                                                 ll_peb,
                                                 pitch_peb,
                                                 shape_peb,
-                                                mats[i_depgraph])
+                                                mats[i_pebgraph])
     cells = [openmc.Cell(fill=lattice, region = fueled_reg),
-             openmc.Cell(fill=mats[i_depgraph], region = unfueled_reg)]
+             openmc.Cell(fill=mats[i_pebgraph], region = unfueled_reg)]
     univ = openmc.Universe(cells=cells)
     dep_univs.append(univ)
 
 for i, info in dep_log.items():
     pebbles.append(openmc.model.TRISO(peb_R, 
                                       dep_univs[info['i_zone']], 
-                                      dep_xyz[i]))
+                                      peb_xyz[i]))
 
 #--- core periphery ---#
 
@@ -559,9 +565,10 @@ geometry.export_to_xml()
 
 
 settings = openmc.Settings()
-settings.temperature={'method':'interpolation'}
+settings.temperature={'method':'interpolation', 'range':(294, 1200)}
+settings.output = {'summary': False}
 settings.verbosity=7
-settings.particles=(25000)
+settings.particles=(15000)
 settings.generations_per_batch = 3
 settings.batches = 150
 settings.inactive = 25
@@ -569,7 +576,7 @@ settings.export_to_xml()
 
 xyplot = openmc.SlicePlot()
 xyplot.basis='xy'
-xyplot.origin = (0, 0, dep_z)
+xyplot.origin = (0, 0, peb_zmax)
 xyplot.width = (500, 500)
 xyplot.pixels = (5000, 5000)
 xyplot.color_by = 'material'
@@ -577,7 +584,7 @@ xyplot.colors = colors
 
 xyplotzoom = openmc.SlicePlot()
 xyplotzoom.basis='xy'
-xyplotzoom.origin = (0, 0, dep_z)
+xyplotzoom.origin = (0, 0, peb_zmax)
 xyplotzoom.width = (12, 12)
 xyplotzoom.pixels = (1800, 1800)
 xyplotzoom.color_by = 'material'
@@ -608,6 +615,4 @@ openmc.deplete.CECMIntegrator(op,
                               timesteps, 
                               power, 
                               timestep_units='d').integrate()
-
-
 

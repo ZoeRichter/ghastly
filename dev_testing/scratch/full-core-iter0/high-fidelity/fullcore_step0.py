@@ -2,6 +2,9 @@ import openmc
 import openmc.deplete
 import numpy as np
 import math
+import h5py
+import json
+import sys
 from itertools import product
 from matplotlib import colormaps
 
@@ -39,11 +42,65 @@ rpv_zmax = 1120
 rpv_zmin = -154
 
 peb_R = 3.0
+peb_D = 2*peb_R
 fueled_R = 2.5
 triso_R = [0.02125, 0.04275]
 n_triso = 19000
 n_pass = 6
 nd_comps = ["ndep"+str(int(i+1)) for i in range(n_pass)]
+
+zones = np.array([10, 15, 20])*peb_D
+
+with h5py.File('pebble_data.hdf', mode='r') as h5f:
+    peb_xyz = h5f["VTKHDF"]["Points"][0]
+
+peb_zmax = max([xyz[2] for xyz in peb_xyz])
+top_zone1 = []
+top_zone2 = []
+top_zone3 = []
+for i, xyz in enumerate(peb_xyz):
+    if xyz[2] >= peb_zmax - 3*peb_R:
+        r = (xyz[0]**2 + xyz[1]**2)**0.5
+        if r <= zones[0]:
+            top_zone1.append(i)
+        elif r > zones[0] and r <= zones[1]:
+            top_zone2.append(i)
+        elif r > zones[1]:
+            top_zone3.append(i)
+assert len(top_zone1) > 3**(n_pass-1)
+assert len(top_zone2) > 3**(n_pass-1)
+assert len(top_zone3) > 3**(n_pass-1)
+
+zone1_i = rng.choice(top_zone1, 3**(n_pass-1), replace=False)
+zone2_i = rng.choice(top_zone2, 3**(n_pass-1), replace=False)
+zone3_i = rng.choice(top_zone3, 3**(n_pass-1), replace=False)
+plot_i = [zone1_i[0], zone2_i[0], zone3_i[0]]
+
+dep_i = np.concatenate((zone1_i, zone2_i, zone3_i))
+mask = np.ones(len(peb_xyz), dtype=bool)
+mask[dep_i] = False
+ndep_i = np.arange(len(peb_xyz))[mask]
+
+dep_log = {int(i) : {'history' : "hist_",
+                'i_zone' : 0} for i in dep_i}
+for i in dep_i:
+    xi = peb_xyz[i][0]
+    yi = peb_xyz[i][1]
+    zi = peb_xyz[i][2]
+    r = (xi**2 + yi**2)**0.5
+    if r <= zones[0]:
+        dep_log[i]['history'] += '1'
+        dep_log[i]['i_zone'] = 0
+    elif r > zones[0] and r <= zones[1]:
+        dep_log[i]['history'] += '2'
+        dep_log[i]['i_zone'] = 1
+    elif r > zones[1]:
+        dep_log[i]['history'] += '3'
+        dep_log[i]['i_zone'] = 2
+
+with open('dep_log.json', mode='w') as f:
+    json.dump(dep_log, f, indent=4)
+
 
 ###############------------------- MATERIALS ------------------###############
 
@@ -128,6 +185,22 @@ ndep6.add_s_alpha_beta('c_Graphite')
 ndep6.depletable = False
 ndep6.temperature = 1088.15 #K
 
+uco_vol = (3**(n_pass-1))*n_triso*(4/3)*np.pi*triso_R[0]**3
+dep_mats = []
+for i in range(len(zones)):
+    mat_name = 'hist_' + str(i+1)
+    dep_mats.append(openmc.Material(name=mat_name))
+    dep_mats[-1].set_density('g/cm3', 10.4)
+    dep_mats[-1].add_nuclide("U235", 0.1386, percent_type='wo')
+    dep_mats[-1].add_nuclide("U238",0.7559, percent_type='wo')
+    dep_mats[-1].add_element("O", 0.06025, percent_type='wo')
+    dep_mats[-1].add_element('C', 0.04523, percent_type='wo')
+    dep_mats[-1].add_s_alpha_beta('c_Graphite')
+    dep_mats[-1].temperature = 1088.15 #K
+    dep_mats[-1].volume = uco_vol
+    dep_mats[-1].depletable = True
+
+
 buffer = openmc.Material(name='buffer')
 buffer.set_density('g/cm3', 1.05)
 buffer.add_element('C', 0.9999987, percent_type='wo')
@@ -161,6 +234,7 @@ triso_layer_mat = openmc.Material.mix_materials([buffer, pyc, sic],
 triso_layer_mat.add_s_alpha_beta('c_Graphite')
 triso_layer_mat.temperature = 1088.15 #K
 triso_layer_mat.name = 'triso_layer'
+triso_layer_mat.depletable = False
 
 
 graphite = openmc.Material(name='graphite')
@@ -169,6 +243,7 @@ graphite.temperature = 778.15 #K
 graphite.add_element('C', 0.9999985, percent_type='wo')
 graphite.add_element('B', 1.5*10**(-6), percent_type='wo')
 graphite.add_s_alpha_beta('c_Graphite')
+graphite.depletable = False
 
 pebgraphite = openmc.Material(name='pebgraphite')
 pebgraphite.set_density('g/cm3', 1.74)
@@ -176,6 +251,8 @@ pebgraphite.temperature = 1088.15 #K
 pebgraphite.add_element('C', 0.9999987, percent_type='wo')
 pebgraphite.add_element('B', 1.3*10**(-6), percent_type='wo')
 pebgraphite.add_s_alpha_beta('c_Graphite')
+pebgraphite.depletable = False
+
 
 mixgraph = openmc.Material(name='mixgraph')
 mixgraph.set_density('g/cm3', 1.8)
@@ -190,6 +267,7 @@ b4c.add_nuclide('B11', 0.6408, percent_type='ao')
 b4c.add_element('C', 0.2, percent_type='ao')
 
 
+
 b4c_frac = 0.0004
 print(f"Gray skirt is {b4c_frac*100}% B4C by weight.")
 graph_frac = 1-b4c_frac
@@ -201,19 +279,22 @@ bgraphite = openmc.Material.mix_materials([mixgraph, b4c],
 bgraphite.add_s_alpha_beta('c_Graphite')
 bgraphite.temperature = 778.15 #K
 bgraphite.name = 'bgraphite'
+bgraphite.depletable = False
 
 
 he = openmc.Material(name='He')
 he.set_density('atom/b-cm', 0.0006)
 he.add_element('He', 1.0, percent_type='ao')
 he.temperature = 778.15 #K
+he.depletable = False
 
 ss_iron = openmc.Material(name='ss_fe')
 ss_iron.add_element('Fe', 1.0, 'ao')
 ss_iron.set_density('g/cm3', 7.8)
 ss_iron.temperature = 513.5
+ss_iron.depletable = False
 
-mats = openmc.Materials([ndep1, ndep2, ndep3, ndep4, ndep5, ndep6,
+mats = openmc.Materials(dep_mats + [ndep1, ndep2, ndep3, ndep4, ndep5, ndep6,
                          triso_layer_mat, graphite, pebgraphite, 
                          bgraphite, he, ss_iron])
 openmc.Materials(mats).export_to_xml()
@@ -237,13 +318,15 @@ ss = 'ss_fe'
 #--- peripheral material indices and material colors ---#
 
 n_periph = 6
+n_dep = len(zones)
 
-
-ndep_c = np.linspace(0.05, 0.75, n_pass)
-periph_c = np.linspace(0.10, 1.0, n_periph)
+dep_c = np.linspace(0.65, 0.95, n_dep)
+ndep_c = np.linspace(0.30, 0.80, n_pass)
+periph_c = np.linspace(0.0, 0.95, n_periph)
 
 periph_rgb = 255*colormaps['magma'](periph_c)[:, 0:-1]
-nd_rgb = 255*colormaps['bone_r'](ndep_c)[:, 0:-1]
+nd_rgb = 255*colormaps['gray_r'](ndep_c)[:, 0:-1]
+dep_rgb = 255*colormaps['rainbow_r'](dep_c)[:, 0:-1]
 
 
 i_graph = np.argmax(matnames==graph)
@@ -254,9 +337,9 @@ i_he = np.argmax(matnames==he)
 i_ss = np.argmax(matnames==ss)
 
 colors = {mats[i_graph] : tuple(map(int, periph_rgb[1])),
-          mats[i_bgraph] : tuple(map(int, periph_rgb[3])),
+          mats[i_bgraph] : tuple(map(int, periph_rgb[4])),
           mats[i_pebgraph] : tuple(map(int, periph_rgb[2])),
-          mats[i_layer] : tuple(map(int, periph_rgb[4])),
+          mats[i_layer] : tuple(map(int, periph_rgb[3])),
           mats[i_he] : tuple(map(int, periph_rgb[5])),
           mats[i_ss] : tuple(map(int, periph_rgb[0]))}
 
@@ -264,13 +347,14 @@ for i, nd_comp in enumerate(nd_comps):
     i_uco = np.argmax(matnames == nd_comp)
     colors[mats[i_uco]] = tuple(map(int, nd_rgb[i]))
 
+for i in range(len(zones)):
+    uco_name = 'hist_' + str(i+1)
+    i_uco = np.argmax(matnames == uco_name)
+    colors[mats[i_uco]] = tuple(map(int, dep_rgb[i]))
 
 ###############------------------- GEOMETRY -------------------###############
 
 #--- pebbles ---#
-
-ndep_xyz = 100*np.loadtxt('all_nd_pebs.csv', delimiter=',')
-
 
 # used by all pebbles
 uco_bounds = openmc.Sphere(r=triso_R[0])
@@ -307,16 +391,54 @@ for u in ndep_triso_univs:
              openmc.Cell(fill=mats[i_pebgraph], region = unfueled_reg)]
     univ = openmc.Universe(cells=cells)
     ndep_univs.append(univ)
-pass_count = np.zeros(6)
+
+pcount = np.zeros(6)
+ndep_log = {}
 pebbles = []
-for xyz in ndep_xyz:
+for i in ndep_i:
     i_pass = rng.integers(0, n_pass)
-    pass_count[i_pass] += 1
+    ndep_log[int(i)] = int(i_pass)
+    pcount[i_pass] += 1
     pebbles.append(openmc.model.TRISO(peb_R,
                                       ndep_univs[i_pass],
-                                      xyz))
+                                      peb_xyz[i]))
 
-print(pass_count/len(ndep_xyz))
+with open('ndep_log.json', mode='w') as f:
+    json.dump(ndep_log, f, indent=4)
+
+pmin = min(pcount)
+pratio = pcount/pmin
+ratio_str = ''
+for ratio in pratio[:-1]:
+    ratio_str +=  f'{ratio:.2f}/'
+ratio_str += f'{pratio[-1]:.2f}'
+print(f'ND pebble compositions in {ratio_str} ratio.')
+
+dep_triso_univs = []
+for i in range(len(zones)):
+    dep_name = 'hist_' + str(i)
+    i_uco = np.argmax(matnames == dep_name)
+    cells = [openmc.Cell(fill=mats[i_uco], region=-uco_bounds),
+             openmc.Cell(fill=mats[i_layer], region=+uco_bounds)]
+    dep_triso_univs.append(openmc.Universe(cells=cells)) 
+
+dep_univs = []
+for u in dep_triso_univs: 
+    trisos = [openmc.model.TRISO(triso_R[1], u, c) for c in triso_centers]
+    lattice = openmc.model.create_triso_lattice(trisos,
+                                                ll_peb,
+                                                pitch_peb,
+                                                shape_peb,
+                                                mats[i_pebgraph])
+    cells = [openmc.Cell(fill=lattice, region = fueled_reg),
+             openmc.Cell(fill=mats[i_pebgraph], region = unfueled_reg)]
+    univ = openmc.Universe(cells=cells)
+    dep_univs.append(univ)
+
+for i, info in dep_log.items():
+    pebbles.append(openmc.model.TRISO(peb_R, 
+                                      dep_univs[info['i_zone']], 
+                                      peb_xyz[i]))
 
 ll_active = np.array([-active_r, -active_r, refl_zmin])
 ur_active = np.array([active_r, active_r, active_zmax])
@@ -409,8 +531,9 @@ shannon_mesh.dimension=(5, 5, 10)
 
 settings = openmc.Settings()
 settings.temperature={'method':'interpolation'}
+settings.output = {'summary':False}
 settings.verbosity=7
-settings.particles=(25000)
+settings.particles=(15000)
 settings.generations_per_batch = 3
 settings.batches = 150
 settings.inactive = 25
@@ -420,44 +543,46 @@ settings.export_to_xml()
 xyplot = openmc.SlicePlot()
 xyplot.basis='xy'
 xyplot.origin = (0, 0, rpv_zmin+(rpv_zmax-rpv_zmin)/2)
-xyplot.width = (500, 500)
-xyplot.pixels = (1000, 1000)
+xyplot.width = (470, 470)
+xyplot.pixels = (1410, 1410)
 xyplot.color_by = 'material'
 xyplot.colors = colors
-
-xyplotzoom = openmc.SlicePlot()
-xyplotzoom.basis='xy'
-xyplotzoom.origin = (0, 0, rpv_zmin+(rpv_zmax-rpv_zmin)/2)
-xyplotzoom.width = (20, 20)
-xyplotzoom.pixels = (2400, 2400)
-xyplotzoom.color_by = 'material'
-xyplotzoom.colors = colors
-
 
 xzplot = openmc.SlicePlot()
 xzplot.basis='xz'
 xzplot.origin = (0, 0, rpv_zmin+(rpv_zmax-rpv_zmin)/2)
-xzplot.width = (500, 1300)
-xzplot.pixels = (1000, 2600)
+xzplot.width = (470, 1300)
+xzplot.pixels = (1410, 3900)
 xzplot.color_by = 'material'
 xzplot.colors = colors
 
-plots = openmc.Plots([xyplot, xyplotzoom, xzplot])
+plots = openmc.Plots([xyplot, xzplot])
+
+for i in plot_i:
+    plot_xyz = peb_xyz[i]
+    plots.append(openmc.SlicePlot())
+    plots[-1].basis='xy'
+    plots[-1].origin = (plot_xyz[0], plot_xyz[1], plot_xyz[2])
+    plots[-1].width = (6, 6)
+    plots[-1].pixels = (2000, 2000)
+    plots[-1].color_by = 'material'
+    plots[-1].colors = colors
+
 plots.export_to_xml()
 
-egroup_81 = np.loadtxt('81-group-HTGR.csv', skiprows=1, delimiter=' ')[:,0]
-model = openmc.model.Model(geometry=geometry, settings=settings, materials=mats)
-fluxes, micros = openmc.deplete.get_microxs_and_flux(model, cells, energies=egroup_81)
-
-for i, flux in enumerate(fluxes):
-    flux_name = 'flux_' + str(i) + '.csv'
-    micros_name = 'micros_' + str(i) + '.csv'
-    with open(flux_name, mode='w') as fflux:
-        np.savetxt(fflux, fluxes[i])
-    micros[i].to_csv(micros_name)
-
-
-openmc.run()
+egroup_81_edges = np.loadtxt('81-group-HTGR.csv', skiprows=1, delimiter=' ')[:,0]
+egroup_81 = openmc.mgxs.EnergyGroups(egroup_81_edges)
+power = 165*(10**6) # 165 MW in Watts
+timesteps = [1] # days
+model = openmc.model.Model(geometry=geometry, 
+                           settings=settings, 
+                           materials=mats)
+model.convert_to_multigroup(groups = egroup_81)
+op = openmc.deplete.CoupledOperator(model)
+openmc.deplete.CECMIntegrator(op, 
+                              timesteps, 
+                              power, 
+                              timestep_units='d').integrate()
 
 
 
