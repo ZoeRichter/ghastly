@@ -248,7 +248,91 @@ def _init_data_h5(root, coord, v, vmag, zone, layer,
     point_data_offsets.create_dataset('time_scale', data=[0], maxshape=(None,), 
                                       dtype=np.int32)
 
+def create_paraview_hdf5(inputfile, coordpath, recircpath, 
+                     data_name="pebble_data", sort_int=-19, n_skip=1, 
+                     delimiter=' ', skiprows=9, n_recirc=2500000, 
+                     n_dump=250000, dt=2.4790e-07, recirc_hz=0.014, 
+                     pattern=[0, 9, 10, 11, 2, 3, 4, 5, 6, 7, 8], units = 'm'):
+    '''
+    create peb coord and reactor-time converted velocity hdf5 w/ extra data 
+    needed for paraview plotting. values in cm for later openmc use. 
+    also time step value csv
+    '''
 
+    inp_path = os.path.expanduser(inputfile)
+    inp_block = read_input.InputBlock(inp_path)
+    sim_block = inp_block.create_obj()
+    
+
+    cpath = os.path.expanduser(coordpath)
+    unsorted_c_fnames = glob.glob(os.path.join(cpath, "*.bin"))
+    c_fnames = sorted(unsorted_c_fnames, key=lambda x:x[sort_int:])
+    n_tsteps = len(c_fnames)
+    match units:
+        case 'm':
+            c = 100
+        case 'cm':
+            c = 1
+        case 'in':
+            c = 2.54
+        case 'ft':
+            c = 30.48
+
+    data_file = data_name + ".h5"
+    xmf_file = data_name + ".xmf"
+
+    # delete the old h5 and create the new one from scratch. 
+    try:
+        os.remove(data_file)
+    except OSError:
+        pass
+    
+    # xmf is always recreated to make sure it reflects the updated h5.
+    try:
+        os.remove(xmf_file)
+    except OSError:
+        pass
+
+    
+    for tstep in range(n_tsteps):
+        data = read_input.read_lammps_bin(c_fnames[tstep], cpath)
+        uid = []
+        coord = []
+        vmag = []
+        zone = []
+        layer = []
+
+        for d in data:
+            uid.append(int(d[pattern[0]]))
+            coord.append([c*d[pattern[1]], c*d[pattern[2]], c*d[pattern[3]]])
+            zone.append(int(d[pattern[4]]))
+            layer.append(int(d[pattern[5]])) 
+            vi = [c*d[pattern[8]], c*d[pattern[9]], c*d[pattern[10]]] 
+            vmag.append(sum([vi[0]**2 + vi[1]**2 + vi[2]**2])**0.5)
+        
+        uid_key = sorted(enumerate(uid), key=lambda x: x[1])
+        coord = [coord[i] for i, _ in uid_key]
+        zone = [zone[i] for i, _ in uid_key]
+        layer = [layer[i] for i, _ in uid_key] 
+        vmag = [vmag[i] for i, _ in uid_key]
+        shape_n = len(coord)
+
+
+        pad = 10 - len(str(tstep))
+        group_name = pad*'0'+str(tstep)
+        with h5py.File(data_file, mode='a') as h5f: 
+            group = h5f.require_group(group_name)
+
+            group.create_dataset('xyz', data=coord)
+ 
+            group.create_dataset('vmag', data=vmag)
+            
+            group.create_dataset('zone',
+                                 data=zone, dtype=np.uint8)
+            group.create_dataset('layer', 
+                                 data=layer, dtype=np.uint8) 
+
+    _write_data_xmf(data_file, xmf_file)
 
 def _write_data_xmf(data_file, xmf_file):
     """
@@ -256,9 +340,9 @@ def _write_data_xmf(data_file, xmf_file):
     """
 
     with h5py.File(data_file, mode='r') as h5f:
-        tsteps = h5f['xyz'].shape[0]
-        shape_n = h5f['xyz'].shape[1]
-        n_dump = h5f.attrs['n_dump']
+        h5keys = list(h5f.keys())
+        shape_n = len(h5f[h5keys[0]]['xyz'])
+        n_dset = len(h5f)
 
     with open(xmf_file, mode='w') as xmf:
         xmf.write('<?xml version="1.0" ?>\n')
@@ -267,67 +351,49 @@ def _write_data_xmf(data_file, xmf_file):
         xmf.write('  <Domain>\n')
         # CollectionType="Temporal" for paraview
         xmf.write('    <Grid Name="Pebbles" GridType="Collection" CollectionType="Temporal">\n')
-        for tstep in range(tsteps):
+        for i, h5k in enumerate(h5keys):
             xmf.write('      <Grid Name="Pebbles" GridType="Uniform">\n')
-            xmf.write(f'        <Time Type="Single" Value="{tstep*n_dump}" />\n')
-            xmf.write(f'        <Topology TopologyType="Polyvertex NumberOfElements="{shape_n}" />\n')
+            xmf.write(f'        <Time Value="{h5k}" />\n')
+
+            xmf.write(f'        <Topology TopologyType="Polyvertex" '
+                      'NumberOfElements="{shape_n}" />\n')
             xmf.write('        <Geometry GeometryType="XYZ">\n')
             xmf.write(f'          <DataItem Format="HDF" Dimensions="{shape_n} 3">\n')
-            xmf.write(f'            {data_file}:/xyz\n')
+            xmf.write(f'            {data_file}:/{h5k}/xyz\n')
             xmf.write('          </DataItem>\n')
             xmf.write('        </Geometry>\n')
 
-            xmf.write('        <Attribute Name="Vx [cm/s]" AttributeType="Scalar" Center="Node">\n')
+
+
+
+            xmf.write('        <Attribute Name="V Magnitude" AttributeType="Scalar" Center="Node">\n')
             xmf.write(f'          <DataItem Format="HDF" Dimensions="{shape_n}">\n')
-            xmf.write(f'            {data_file}:/vx\n')
-            xmf.write('          </DataItem>\n')
-            xmf.write('        </Attribute>\n')
-            xmf.write('        <Attribute Name="Vy [cm/s]" AttributeType="Scalar" Center="Node">\n')
-            xmf.write(f'          <DataItem Format="HDF" Dimensions="{shape_n}">\n')
-            xmf.write(f'            {data_file}:/vy\n')
-            xmf.write('          </DataItem>\n')
-            xmf.write('        </Attribute>\n')
-            xmf.write('        <Attribute Name="Vz [cm/s]" AttributeType="Scalar" Center="Node">\n')
-            xmf.write(f'          <DataItem Format="HDF" Dimensions="{shape_n}">\n')
-            xmf.write(f'            {data_file}:/vz\n')
+            xmf.write(f'            {data_file}:/{h5k}/vmag\n')
             xmf.write('          </DataItem>\n')
             xmf.write('        </Attribute>\n')
 
-            xmf.write('        <Attribute Name="V Magnitude [cm/s]" AttributeType="Scalar" Center="Node">\n')
-            xmf.write(f'          <DataItem Format="HDF" Dimensions="{shape_n}">\n')
-            xmf.write(f'            {data_file}:/vmag\n')
-            xmf.write('          </DataItem>\n')
-            xmf.write('        </Attribute>\n')
+
+
 
             xmf.write('        <Attribute Name="Zone" AttributeType="Scalar" Center="Node">\n')
             xmf.write(f'          <DataItem Format="HDF" Dimensions="{shape_n}">\n')
-            xmf.write(f'            {data_file}:/zone\n')
+            xmf.write(f'            {data_file}:/{h5k}/zone\n')
             xmf.write('          </DataItem>\n')
             xmf.write('        </Attribute>\n')
 
             xmf.write('        <Attribute Name="Layer" AttributeType="Scalar" Center="Node">\n')
             xmf.write(f'          <DataItem Format="HDF" Dimensions="{shape_n}">\n')
-            xmf.write(f'            {data_file}:/layer\n')
-            xmf.write('          </DataItem>\n')
-            xmf.write('        </Attribute>\n')
-
-            xmf.write('        <Attribute Name="Pass Number" AttributeType="Scalar" Center="Node">\n')
-            xmf.write(f'          <DataItem Format="HDF" Dimensions="{shape_n}">\n')
-            xmf.write(f'            {data_file}:/pass_n\n')
-            xmf.write('          </DataItem>\n')
-            xmf.write('        </Attribute>\n')
-
-            xmf.write('        <Attribute Name="Number of Recirculations" AttributeType="Scalar" Center="Node">\n')
-            xmf.write(f'          <DataItem Format="HDF" Dimensions="{shape_n}">\n')
-            xmf.write(f'            {data_file}:/recirc_n\n')
+            xmf.write(f'            {data_file}:/{h5k}/layer\n')
             xmf.write('          </DataItem>\n')
             xmf.write('        </Attribute>\n')
 
             xmf.write('      </Grid>\n')
         
+        
         xmf.write('    </Grid>\n')
         xmf.write('  </Domain>\n')
         xmf.write('</Xdmf>\n')
+        
 
 
 
