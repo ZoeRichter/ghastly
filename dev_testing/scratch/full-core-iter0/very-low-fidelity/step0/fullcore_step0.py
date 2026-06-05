@@ -7,7 +7,8 @@ import sys
 from itertools import product
 from matplotlib import colormaps
 
-rng = np.random.default_rng()
+univ_seed = 123123123
+rng = np.random.default_rng(seed=univ_seed)
 
 # variable key:
 # skirt = grey skirt
@@ -20,12 +21,13 @@ rng = np.random.default_rng()
 
 n_peb = 223000
 pf = 0.6
-pf_hcp = 0.74
+#peb_R = 2.983
 peb_R = 3.0
 peb_D = peb_R*2
 fueled_R = 2.5
 triso_R = [0.02125, 0.04275]
 n_triso = 19000
+triso_file = f"../trisos/{n_triso}_Ntriso_{univ_seed}.csv"
 n_pass = 6
 nd_comps = ["ndep"+str(int(i+1)) for i in range(n_pass)]
 
@@ -170,6 +172,12 @@ with open('dep_log0.json', mode='w') as f:
 
 ###############------------------- MATERIALS ------------------###############
 
+fuel_temp = 1088.15 #K
+periph_temp = 778.15 #K
+min_temp = 600 #K
+max_temp = 1200 #K
+default_temp = 900 #K
+
 dep_res_mats = openmc.Materials.from_xml('dep-res-mats.xml')
 dep_file = 'i4-dep-res.h5'
 res = openmc.deplete.Results(dep_file)
@@ -214,42 +222,42 @@ ndep1.set_density('g/cm3', 10.4)
 ndep1.add_components(p_comps['p01'], percent_type = 'wo')
 ndep1.add_s_alpha_beta('c_Graphite')
 ndep1.depletable = False
-ndep1.temperature = 1088.15 #K
+ndep1.temperature = fuel_temp #K
 
 ndep2= openmc.Material(name=nd_comps[1])
 ndep2.set_density('g/cm3', 10.4)
 ndep2.add_components(p_comps['p12'], percent_type = 'wo')
 ndep2.add_s_alpha_beta('c_Graphite')
 ndep2.depletable = False
-ndep2.temperature = 1088.15 #K
+ndep2.temperature = fuel_temp #K
 
 ndep3= openmc.Material(name=nd_comps[2])
 ndep3.set_density('g/cm3', 10.4)
 ndep3.add_components(p_comps['p23'], percent_type = 'wo')
 ndep3.add_s_alpha_beta('c_Graphite')
 ndep3.depletable = False
-ndep3.temperature = 1088.15 #K
+ndep3.temperature = fuel_temp #K
 
 ndep4= openmc.Material(name=nd_comps[3])
 ndep4.set_density('g/cm3', 10.4)
 ndep4.add_components(p_comps['p34'], percent_type = 'wo')
 ndep4.add_s_alpha_beta('c_Graphite')
 ndep4.depletable = False
-ndep4.temperature = 1088.15 #K
+ndep4.temperature = fuel_temp #K
 
 ndep5= openmc.Material(name=nd_comps[4])
 ndep5.set_density('g/cm3', 10.4)
 ndep5.add_components(p_comps['p45'], percent_type = 'wo')
 ndep5.add_s_alpha_beta('c_Graphite')
 ndep5.depletable = False
-ndep5.temperature = 1088.15 #K
+ndep5.temperature = fuel_temp #K
 
 ndep6= openmc.Material(name=nd_comps[5])
 ndep6.set_density('g/cm3', 10.4)
 ndep6.add_components(p_comps['p56'], percent_type = 'wo')
 ndep6.add_s_alpha_beta('c_Graphite')
 ndep6.depletable = False
-ndep6.temperature = 1088.15 #K
+ndep6.temperature = fuel_temp #K
 
 uco_vol = (3**(n_pass-1))*n_triso*(4/3)*np.pi*triso_R[0]**3
 dep_mats = []
@@ -262,7 +270,7 @@ for i in range(len(zones)):
     dep_mats[-1].add_element("O", 0.06025, percent_type='wo')
     dep_mats[-1].add_element('C', 0.04523, percent_type='wo')
     dep_mats[-1].add_s_alpha_beta('c_Graphite')
-    dep_mats[-1].temperature = 1088.15 #K
+    dep_mats[-1].temperature = fuel_temp
     dep_mats[-1].volume = uco_vol
     dep_mats[-1].depletable = True
 
@@ -298,28 +306,26 @@ triso_layer_mat = openmc.Material.mix_materials([buffer, pyc, sic],
                                                  sic_vol/layer_vol],
                                                 'vo')
 triso_layer_mat.add_s_alpha_beta('c_Graphite')
-triso_layer_mat.temperature = 1088.15 #K
+triso_layer_mat.temperature = fuel_temp
 triso_layer_mat.name = 'triso_layer'
-
-
-graphite = openmc.Material(name='graphite')
-graphite.set_density('g/cm3', 1.8)
-graphite.temperature = 778.15 #K
-graphite.add_element('C', 0.9999985, percent_type='wo')
-graphite.add_element('B', 1.5*10**(-6), percent_type='wo')
-graphite.add_s_alpha_beta('c_Graphite')
 
 pebgraphite = openmc.Material(name='pebgraphite')
 pebgraphite.set_density('g/cm3', 1.74)
-pebgraphite.temperature = 1088.15 #K 
+pebgraphite.temperature = fuel_temp
 pebgraphite.add_element('C', 0.9999987, percent_type='wo')
 pebgraphite.add_element('B', 1.3*10**(-6), percent_type='wo')
 pebgraphite.add_s_alpha_beta('c_Graphite')
 
+graphite = openmc.Material(name='graphite')
+graphite.set_density('g/cm3', 1.8)
+graphite.temperature = periph_temp
+graphite.add_element('C', 0.9999985, percent_type='wo')
+graphite.add_element('B', 1.5*10**(-6), percent_type='wo')
+graphite.add_s_alpha_beta('c_Graphite')
 
 mixgraph = openmc.Material(name='mixgraph')
 mixgraph.set_density('g/cm3', 1.8)
-mixgraph.temperature = 778.15 #K
+mixgraph.temperature = periph_temp
 mixgraph.add_element('C', 0.9999985, percent_type='wo')
 mixgraph.add_element('B', 1.5*10**(-6), percent_type='wo')
 
@@ -329,7 +335,7 @@ b4c.add_nuclide('B10', 0.1592, percent_type='ao')
 b4c.add_nuclide('B11', 0.6408, percent_type='ao')
 b4c.add_element('C', 0.2, percent_type='ao')
 
-b4c_frac = 0.0004
+b4c_frac = 0.0005
 graph_frac = 1-b4c_frac
 
 bgraphite = openmc.Material.mix_materials([mixgraph, b4c],
@@ -337,19 +343,19 @@ bgraphite = openmc.Material.mix_materials([mixgraph, b4c],
                                            b4c_frac], 'wo')
 
 bgraphite.add_s_alpha_beta('c_Graphite')
-bgraphite.temperature = 778.15 #K
+bgraphite.temperature = periph_temp
 bgraphite.name = 'bgraphite'
 
 
 he = openmc.Material(name='He')
 he.set_density('atom/b-cm', 0.0006)
 he.add_element('He', 1.0, percent_type='ao')
-he.temperature = 778.15 #K
+he.temperature = periph_temp
 
 ss_iron = openmc.Material(name='ss_fe')
 ss_iron.add_element('Fe', 1.0, 'ao')
 ss_iron.set_density('g/cm3', 7.8)
-ss_iron.temperature = 513.5
+ss_iron.temperature = min_temp
 
 mats = openmc.Materials(dep_mats + [ndep1, ndep2, ndep3, ndep4, ndep5, ndep6,
                          triso_layer_mat, graphite, pebgraphite, 
@@ -374,16 +380,6 @@ ss = 'ss_fe'
 
 #--- peripheral material indices and material colors ---#
 
-n_periph = 6
-n_dep = len(zones)
-
-dep_c = np.linspace(0.65, 0.95, n_dep)
-ndep_c = np.linspace(0.30, 0.80, n_pass)
-periph_c = np.linspace(0.0, 0.95, n_periph)
-
-periph_rgb = 255*colormaps['magma'](periph_c)[:, 0:-1]
-nd_rgb = 255*colormaps['gray_r'](ndep_c)[:, 0:-1]
-dep_rgb = 255*colormaps['rainbow_r'](dep_c)[:, 0:-1]
 
 i_graph = np.argmax(matnames==graph)
 i_bgraph = np.argmax(matnames==bgraph)
@@ -392,21 +388,7 @@ i_layer = np.argmax(matnames==triso_layer)
 i_he = np.argmax(matnames==he)
 i_ss = np.argmax(matnames==ss)
 
-colors = {mats[i_graph] : tuple(map(int, periph_rgb[1])),
-          mats[i_bgraph] : tuple(map(int, periph_rgb[3])),
-          mats[i_pebgraph] : tuple(map(int, periph_rgb[2])),
-          mats[i_layer] : tuple(map(int, periph_rgb[4])),
-          mats[i_he] : tuple(map(int, periph_rgb[5])),
-          mats[i_ss] : tuple(map(int, periph_rgb[0]))}
 
-for i, nd_comp in enumerate(nd_comps):
-    i_uco = np.argmax(matnames == nd_comp)
-    colors[mats[i_uco]] = tuple(map(int, nd_rgb[i]))
-
-for i in range(len(zones)):
-    uco_name = 'hist_' + str(i+1)
-    i_uco = np.argmax(matnames == uco_name)
-    colors[mats[i_uco]] = tuple(map(int, dep_rgb[i]))
 
 
 ###############------------------- GEOMETRY -------------------###############
@@ -420,13 +402,10 @@ fueled_zone = openmc.Sphere(r=fueled_R)
 unfueled_zone = openmc.Sphere(r=peb_R)
 fueled_reg = -fueled_zone
 unfueled_reg = +fueled_zone & -unfueled_zone
-triso_centers = openmc.model.pack_spheres(radius=triso_R[1],
-                                          region=fueled_reg,
-                                          num_spheres=19000,
-                                          seed = 16541846)
+triso_centers = np.loadtxt(triso_file)
 sphere = openmc.Cell(region=fueled_reg)
 ll_peb, ur_peb = sphere.region.bounding_box
-shape_peb = (2, 2, 2)
+shape_peb = (4, 4, 4)
 pitch_peb = (ur_peb - ll_peb)/shape_peb
 
 # non-depleting
@@ -534,7 +513,7 @@ rpv_reg = rpv_side_reg | rpv_top_reg | rpv_bot_reg
 
 active = openmc.Cell(region=active_reg)
 ll_active, ur_active = active.region.bounding_box
-shape_active = (4, 4, 6)
+shape_active = (6, 6, 12)
 pitch_active = (ur_active - ll_active)/shape_active
 active_lattice = openmc.model.create_triso_lattice(pebbles,
                                                    ll_active,
@@ -561,31 +540,37 @@ cells = [active, subskirt, skirt, refl, rpv] + coolch
 
 universe = openmc.Universe(cells = cells)
 geometry = openmc.Geometry(universe)
-geometry.export_to_xml()
 
-
+shannon_mesh = openmc.RegularMesh()
+shannon_mesh.lower_left = (-rpv_rout, -rpv_rout, rpv_zmin)
+shannon_mesh.upper_right = (rpv_rout, rpv_rout, rpv_zmax)
+shannon_mesh.dimension=(5, 5, 10)
 settings = openmc.Settings()
-settings.temperature={'method':'interpolation', 'range':(294, 1200)}
-settings.output = {'summary': False}
+settings.temperature={'method':'interpolation',
+                      'default' : default_temp,
+                      'tolerance' : 100.0,
+                      'range':(min_temp, max_temp)}
+settings.output = {'summary': False,
+                   'tallies' : False}
 settings.verbosity=7
-settings.particles=(15000)
-settings.generations_per_batch = 3
+settings.particles=(10000)
+settings.generations_per_batch = 2
 settings.batches = 150
-settings.inactive = 25
-settings.export_to_xml()
+settings.inactive = 20
+settings.entropy_mesh = shannon_mesh
+settings.seed = univ_seed
 
-sys.exit()
-egroup_81_edges = np.loadtxt('81-group-HTGR.csv', skiprows=1, delimiter=' ')[:,0]
-egroup_81 = openmc.mgxs.EnergyGroups(egroup_81_edges)
 power = 165*(10**6) # 165 MW in Watts
 timesteps = [1] # days
 model = openmc.model.Model(geometry=geometry, 
                            settings=settings, 
                            materials=mats)
-model.convert_to_multigroup(groups = egroup_81)
-op = openmc.deplete.CoupledOperator(model)
-openmc.deplete.CECMIntegrator(op, 
-                              timesteps, 
-                              power, 
-                              timestep_units='d').integrate()
+op = openmc.deplete.CoupledOperator(model = model,
+                                    normalization_mode = 'energy-deposition')
+cecm = openmc.deplete.CECMIntegrator(operator = op, 
+                                     timesteps = timesteps, 
+                                     power = power, 
+                                     timestep_units='d')
+
+cecm.integrate()
 

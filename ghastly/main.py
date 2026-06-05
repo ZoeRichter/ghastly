@@ -614,13 +614,85 @@ def _templater(params, file, template_name):
         f.write(text)
     return text
 
-def write_core_periphery(input_file, periph_file, periph_template):
+def gen_trisos(seed, n_triso, triso_Rout, fueled_R):
     '''
-    Given Ghastly input file, write the core periphery (i.e., everything
-    outside the active core) for an openmc model.  This only needs to be 
-    created once for a given problem.
+    given input args, generate random triso coords using seed and write to
+    csv file to use in fullcore later.
+    '''
+
+def write_ndep_materials(inputfile, material_file, material_template):
+    '''
+    given ghastly input, write python script that generates materials xml for
+    everything except the depleting pebbles
     '''
     input_block = read_input.InputBlock(input_file)
     sim_block = input_block.create_obj()
 
+def write_dep_materials(inputfile, depmat_file, depmat_template):
+    '''
+    given ghastly input, write python script that generates materials xml for
+    the depleting pebbles
+    '''
+    input_block = read_input.InputBlock(input_file)
+    sim_block = input_block.create_obj()
 
+def write_geometry0(input_file, geometry_file, geometry_template):
+    '''
+    Given Ghastly input file, write the python file that will generate
+    geometry.xml when run.
+    '''
+    input_block = read_input.InputBlock(input_file)
+    sim_block = input_block.create_obj()
+
+    params = {'seed' : 0,
+              'pf' : 0,
+              'peb_R' : 0,
+              'fueled_R' : 0,
+              'triso_R' : [],
+              'n_triso' : 0,
+              'n_pass' : 0,
+              'x_c' : 0,
+              'y_c' : 0,
+              'active_R' : 0,
+              'active_zmax' : 0,
+              'active_zmin' : 0,
+              'refl_Rin' : 0,
+              'skirt_Rin' : 0,
+              'skirt_Rout' : 0,
+              'refl_Rout' : 0,
+              'refl_zmax' : 0,
+              'refl_zmin' : 0,
+              'n_coolch' : 0,
+              'coolch_r' : 0,
+              'coolch_R' : 0,
+              'rpv_Rout' : 0,
+              'rpv_zmax' : 0,
+              'rpv_zmin' : 0,
+              'zone_bounds' : [],
+              'latt_R' : 0,
+              'mat_file' : 'materials.xml',
+              'peb_latt_shape' : (4, 4, 4),
+              'core_latt_shape' : (6, 6, 12)}
+
+def write_settings(inputfile, settings_file, settings_template):
+    '''
+    given ghastly input, write python script that generates materials xml
+    '''
+    input_block = read_input.InputBlock(input_file)
+    sim_block = input_block.create_obj()
+
+    params = {'shannon_mesh_shape' : (5, 5, 10),
+              'temp_method' : 'interpolation',
+              'temp_tolerance' : 100.0,
+              'openmc_verbosity' : 7,
+              'n_particles' : 10000,
+              'n_gen_per_batch' : 2,
+              'n_batches' : 150,
+              'n_inactive' : 20}
+
+def write_dep_step(inputfile, depmain_file, depmain_template):
+    '''
+    given ghastly input, write python script that generates materials xml
+    '''
+    input_block = read_input.InputBlock(input_file)
+    sim_block = input_block.create_obj()

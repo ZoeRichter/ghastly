@@ -2,13 +2,10 @@ import openmc
 import openmc.deplete
 import numpy as np
 import math
-import h5py
 import json
-import sys
-from itertools import product
-from matplotlib import colormaps
 
-rng = np.random.default_rng()
+univ_seed = {{seed}}
+rng = np.random.default_rng(seed=univ_seed)
 
 # variable key:
 # skirt = grey skirt
@@ -19,47 +16,107 @@ rng = np.random.default_rng()
 # outlet and coolant channels span the reflector height.
 # gray shirt bottom lines up with the bottom of the chute
 
-x_c = 0
-y_c = 0
-active_r = 120
-active_zmax = 1010
-active_zmin = 54
-chute_r = 24
-chute_zmin = 0
-chute_apex_z = (active_r*chute_zmin - chute_r*active_zmin)/(active_r - chute_r)
-chute_r2 = (chute_r/(chute_zmin - chute_apex_z))**2
-refl_rin = 120
-skirt_rin = 126
-skirt_rout = 127
-refl_rout = 210
-refl_zmax = 1100
-refl_zmin = -134
-n_coolch = 18
-coolch_r = 4
-coolch_R = 165
-rpv_rout = 230
-rpv_zmax = 1120
-rpv_zmin = -154
-
-peb_R = 3.0
-peb_D = 2*peb_R
-fueled_R = 2.5
-triso_R = [0.02125, 0.04275]
-n_triso = 19000
-n_pass = 6
+n_peb = {{n_peb}}
+pf = {{pf}}
+peb_R = {{peb_R}}
+peb_D = peb_R*2
+fueled_R = {{fueled_R}}
+triso_R = {{triso_R}}
+n_triso = {{n_triso}}
+triso_file = f"../trisos/{n_triso}_Ntriso_{univ_seed}.csv"
+n_pass = {{n_pass}}
 nd_comps = ["ndep"+str(int(i+1)) for i in range(n_pass)]
 
-zones = np.array([10, 15, 20])*peb_D
+x_c = {{x_c}}
+y_c = {{y_c}}
+active_r = {{active_R}}
+active_zmax = {{active_zmax}}
+bed_zmax = (4*n_peb*peb_R**3)/(3*pf*active_r**2)
+active_zmin = {{active_zmin}}
+refl_rin = {{refl_Rin}}
+skirt_rin = {{skirt_Rin}}
+skirt_rout = {{skirt_Rout}}
+refl_rout = {{refl_Rout}}
+refl_zmax = {{refl_zmax}}
+refl_zmin = {{refl_zmin}}
+n_coolch = {{n_coolch}}
+coolch_r = {{coolch_r}}
+coolch_R = {{coolch_R}}
+rpv_rout = {{rpv_Rout}}
+rpv_zmax = {{rpv_zmax}}
+rpv_zmin = {{rpv_zmin}}
 
-with h5py.File('pebble_data.hdf', mode='r') as h5f:
-    peb_xyz = h5f["VTKHDF"]["Points"][0]
+zones = np.array({{zone_bounds}})*peb_D
 
-peb_zmax = max([xyz[2] for xyz in peb_xyz])
+latt_R = {{latt_R}}
+latt_D = 2*latt_R
+
+a0 = latt_D*np.array([0, 0, 0.5])
+b0 = latt_D*np.array([0.5, 0.5*3**0.5, 0.5])
+row_x_offset = latt_D*np.array([1, 0, 0])
+row_y_offset = latt_D*np.array([0, 3**0.5, 0])
+layer_b0_offset = latt_D*np.array([0.5, 1/(2*3**0.5), (2/3)**0.5])
+layer_z_offset = latt_D*np.array([0, 0, 3**0.5])
+N_a = int((active_r-latt_R)/latt_D)+3
+N_b = int((active_r-latt_D)/latt_D)+3
+
+row_a = ([a0] + 
+         [a0 + (i+1)*row_x_offset for i in range(N_a)] + 
+         [a0 - (i+1)*row_x_offset for i in range(N_a)])
+
+row_b = ([b0] + 
+         [b0 + (i+1)*row_x_offset for i in range(N_b)] + 
+         [b0-row_x_offset - (i)*row_x_offset for i in range(N_b+1)])
+N_row_a = int((active_r - latt_R)/row_y_offset[1]) + 3
+N_row_b = int((active_r - latt_R - latt_D*b0[1])/row_y_offset[1]) + 3
+
+layer_a0 = np.concatenate((row_a, row_b, row_b - row_y_offset))
+for i in range(N_row_a):
+    layer_a0 = np.concatenate((layer_a0, 
+                               row_a + (i+1)*row_y_offset, 
+                               row_a - (i+1)*row_y_offset))
+for i in range(N_row_b):
+    layer_a0 = np.concatenate((layer_a0,
+                               row_b + (i+1)*row_y_offset,
+                               row_b-row_y_offset - (i+1)*row_y_offset))
+layer_b0 = layer_a0 + layer_b0_offset
+layer_a0 = [ai for ai in layer_a0 
+            if ((ai[0]**2 + ai[1]**2)**0.5 + peb_R) < active_r]
+layer_b0 = [bi for bi in layer_b0 
+            if ((bi[0]**2 + bi[1]**2)**0.5 + peb_R) < active_r]
+N_layer_a = int((bed_zmax - latt_D)/layer_z_offset[2])
+N_layer_b = int((bed_zmax - layer_b0_offset[2] - latt_R)/layer_z_offset[2])
+layer_a_z = ([a0[2]] + 
+             [a0[2] + (i+1)*layer_z_offset[2] for i in range(N_layer_a)])
+layer_b_z = ([a0[2]+layer_b0_offset[2]] + 
+             [a0[2]+layer_b0_offset[2] + (i+1)*layer_z_offset[2] 
+              for i in range(N_layer_b)])
+
+
+peb_xyz = np.concatenate((layer_a0, layer_b0))
+for i in range(N_layer_a):
+    peb_xyz = np.concatenate((peb_xyz, 
+                               layer_a0 + (i+1)*layer_z_offset))
+for i in range(N_layer_b):
+    peb_xyz = np.concatenate((peb_xyz, 
+                               layer_b0 + (i+1)*layer_z_offset))
+print(f"{len(peb_xyz)} pebbles in lattice.")
+print(f"True pf = {(len(peb_xyz)*4/3*peb_R**3)/(bed_zmax*active_r**2)}.")
+
+core_len = bed_zmax - active_zmin # cm
+transit_time = 6*30.5 # days
+peb_vel = core_len/transit_time # cm/days
+layer_t = round(layer_z_offset[2]/peb_vel) # days
+print(f"Pebble velocity is {peb_vel} cm/day.")
+print(f"It takes approx. {layer_t} days to move layer positions.")
+
+# select starting depleting pebbles to pull from lattice
+peb_zmax = a0[2] + N_layer_a*layer_z_offset[2]
 top_zone1 = []
 top_zone2 = []
 top_zone3 = []
 for i, xyz in enumerate(peb_xyz):
-    if xyz[2] >= peb_zmax - 3*peb_R:
+    if xyz[2] == peb_zmax:
         r = (xyz[0]**2 + xyz[1]**2)**0.5
         if r <= zones[0]:
             top_zone1.append(i)
@@ -74,12 +131,17 @@ assert len(top_zone3) > 3**(n_pass-1)
 zone1_i = rng.choice(top_zone1, 3**(n_pass-1), replace=False)
 zone2_i = rng.choice(top_zone2, 3**(n_pass-1), replace=False)
 zone3_i = rng.choice(top_zone3, 3**(n_pass-1), replace=False)
-plot_i = [zone1_i[0], zone2_i[0], zone3_i[0]]
+
 
 dep_i = np.concatenate((zone1_i, zone2_i, zone3_i))
+
 mask = np.ones(len(peb_xyz), dtype=bool)
 mask[dep_i] = False
 ndep_i = np.arange(len(peb_xyz))[mask]
+
+with open("peb_latt.csv", mode = 'w') as f:
+    np.savetxt(f, peb_xyz)
+
 
 dep_log = {int(i) : {'history' : "hist_",
                 'i_zone' : 0} for i in dep_i}
@@ -98,14 +160,22 @@ for i in dep_i:
         dep_log[i]['history'] += '3'
         dep_log[i]['i_zone'] = 2
 
-with open('dep_log.json', mode='w') as f:
+with open('dep_log0.json', mode='w') as f:
     json.dump(dep_log, f, indent=4)
 
+#for i, z in enumerate(layer_a_z):
+    #print(z, layer_a_z[i-int(dep_step/layer_t)])
 
 ###############------------------- MATERIALS ------------------###############
 
-dep_res_mats = openmc.Materials.from_xml('dep-res-mats.xml')
-dep_file = 'i4-dep-res.h5'
+fuel_temp = {{fuel_temp}} #K
+periph_temp = {{periph_temp}} #K
+min_temp = {{min_temp}} #K
+max_temp = {{max_temp}} #K
+default_temp = {{default_temp}} #K
+
+dep_res_mats = openmc.Materials.from_xml({{init_dep_mat_xml}})
+dep_file = {{init_dep_res_h5}}
 res = openmc.deplete.Results(dep_file)
 dep_t = res.get_times()
 
@@ -148,42 +218,42 @@ ndep1.set_density('g/cm3', 10.4)
 ndep1.add_components(p_comps['p01'], percent_type = 'wo')
 ndep1.add_s_alpha_beta('c_Graphite')
 ndep1.depletable = False
-ndep1.temperature = 1088.15 #K
+ndep1.temperature = fuel_temp #K
 
 ndep2= openmc.Material(name=nd_comps[1])
 ndep2.set_density('g/cm3', 10.4)
 ndep2.add_components(p_comps['p12'], percent_type = 'wo')
 ndep2.add_s_alpha_beta('c_Graphite')
 ndep2.depletable = False
-ndep2.temperature = 1088.15 #K
+ndep2.temperature = fuel_temp #K
 
 ndep3= openmc.Material(name=nd_comps[2])
 ndep3.set_density('g/cm3', 10.4)
 ndep3.add_components(p_comps['p23'], percent_type = 'wo')
 ndep3.add_s_alpha_beta('c_Graphite')
 ndep3.depletable = False
-ndep3.temperature = 1088.15 #K
+ndep3.temperature = fuel_temp #K
 
 ndep4= openmc.Material(name=nd_comps[3])
 ndep4.set_density('g/cm3', 10.4)
 ndep4.add_components(p_comps['p34'], percent_type = 'wo')
 ndep4.add_s_alpha_beta('c_Graphite')
 ndep4.depletable = False
-ndep4.temperature = 1088.15 #K
+ndep4.temperature = fuel_temp #K
 
 ndep5= openmc.Material(name=nd_comps[4])
 ndep5.set_density('g/cm3', 10.4)
 ndep5.add_components(p_comps['p45'], percent_type = 'wo')
 ndep5.add_s_alpha_beta('c_Graphite')
 ndep5.depletable = False
-ndep5.temperature = 1088.15 #K
+ndep5.temperature = fuel_temp #K
 
 ndep6= openmc.Material(name=nd_comps[5])
 ndep6.set_density('g/cm3', 10.4)
 ndep6.add_components(p_comps['p56'], percent_type = 'wo')
 ndep6.add_s_alpha_beta('c_Graphite')
 ndep6.depletable = False
-ndep6.temperature = 1088.15 #K
+ndep6.temperature = fuel_temp #K
 
 uco_vol = (3**(n_pass-1))*n_triso*(4/3)*np.pi*triso_R[0]**3
 dep_mats = []
@@ -196,7 +266,7 @@ for i in range(len(zones)):
     dep_mats[-1].add_element("O", 0.06025, percent_type='wo')
     dep_mats[-1].add_element('C', 0.04523, percent_type='wo')
     dep_mats[-1].add_s_alpha_beta('c_Graphite')
-    dep_mats[-1].temperature = 1088.15 #K
+    dep_mats[-1].temperature = fuel_temp
     dep_mats[-1].volume = uco_vol
     dep_mats[-1].depletable = True
 
@@ -232,31 +302,26 @@ triso_layer_mat = openmc.Material.mix_materials([buffer, pyc, sic],
                                                  sic_vol/layer_vol],
                                                 'vo')
 triso_layer_mat.add_s_alpha_beta('c_Graphite')
-triso_layer_mat.temperature = 1088.15 #K
+triso_layer_mat.temperature = fuel_temp
 triso_layer_mat.name = 'triso_layer'
-triso_layer_mat.depletable = False
-
-
-graphite = openmc.Material(name='graphite')
-graphite.set_density('g/cm3', 1.8)
-graphite.temperature = 778.15 #K
-graphite.add_element('C', 0.9999985, percent_type='wo')
-graphite.add_element('B', 1.5*10**(-6), percent_type='wo')
-graphite.add_s_alpha_beta('c_Graphite')
-graphite.depletable = False
 
 pebgraphite = openmc.Material(name='pebgraphite')
 pebgraphite.set_density('g/cm3', 1.74)
-pebgraphite.temperature = 1088.15 #K 
+pebgraphite.temperature = fuel_temp
 pebgraphite.add_element('C', 0.9999987, percent_type='wo')
 pebgraphite.add_element('B', 1.3*10**(-6), percent_type='wo')
 pebgraphite.add_s_alpha_beta('c_Graphite')
-pebgraphite.depletable = False
 
+graphite = openmc.Material(name='graphite')
+graphite.set_density('g/cm3', 1.8)
+graphite.temperature = periph_temp
+graphite.add_element('C', 0.9999985, percent_type='wo')
+graphite.add_element('B', 1.5*10**(-6), percent_type='wo')
+graphite.add_s_alpha_beta('c_Graphite')
 
 mixgraph = openmc.Material(name='mixgraph')
 mixgraph.set_density('g/cm3', 1.8)
-mixgraph.temperature = 778.15 #K
+mixgraph.temperature = periph_temp
 mixgraph.add_element('C', 0.9999985, percent_type='wo')
 mixgraph.add_element('B', 1.5*10**(-6), percent_type='wo')
 
@@ -266,10 +331,7 @@ b4c.add_nuclide('B10', 0.1592, percent_type='ao')
 b4c.add_nuclide('B11', 0.6408, percent_type='ao')
 b4c.add_element('C', 0.2, percent_type='ao')
 
-
-
-b4c_frac = 0.0004
-print(f"Gray skirt is {b4c_frac*100}% B4C by weight.")
+b4c_frac = 0.0005
 graph_frac = 1-b4c_frac
 
 bgraphite = openmc.Material.mix_materials([mixgraph, b4c],
@@ -277,22 +339,19 @@ bgraphite = openmc.Material.mix_materials([mixgraph, b4c],
                                            b4c_frac], 'wo')
 
 bgraphite.add_s_alpha_beta('c_Graphite')
-bgraphite.temperature = 778.15 #K
+bgraphite.temperature = periph_temp
 bgraphite.name = 'bgraphite'
-bgraphite.depletable = False
 
 
 he = openmc.Material(name='He')
 he.set_density('atom/b-cm', 0.0006)
 he.add_element('He', 1.0, percent_type='ao')
-he.temperature = 778.15 #K
-he.depletable = False
+he.temperature = periph_temp
 
 ss_iron = openmc.Material(name='ss_fe')
 ss_iron.add_element('Fe', 1.0, 'ao')
 ss_iron.set_density('g/cm3', 7.8)
-ss_iron.temperature = 513.5
-ss_iron.depletable = False
+ss_iron.temperature = min_temp
 
 mats = openmc.Materials(dep_mats + [ndep1, ndep2, ndep3, ndep4, ndep5, ndep6,
                          triso_layer_mat, graphite, pebgraphite, 
@@ -317,17 +376,6 @@ ss = 'ss_fe'
 
 #--- peripheral material indices and material colors ---#
 
-n_periph = 6
-n_dep = len(zones)
-
-dep_c = np.linspace(0.65, 0.95, n_dep)
-ndep_c = np.linspace(0.30, 0.80, n_pass)
-periph_c = np.linspace(0.0, 0.95, n_periph)
-
-periph_rgb = 255*colormaps['magma'](periph_c)[:, 0:-1]
-nd_rgb = 255*colormaps['gray_r'](ndep_c)[:, 0:-1]
-dep_rgb = 255*colormaps['rainbow_r'](dep_c)[:, 0:-1]
-
 
 i_graph = np.argmax(matnames==graph)
 i_bgraph = np.argmax(matnames==bgraph)
@@ -336,25 +384,13 @@ i_layer = np.argmax(matnames==triso_layer)
 i_he = np.argmax(matnames==he)
 i_ss = np.argmax(matnames==ss)
 
-colors = {mats[i_graph] : tuple(map(int, periph_rgb[1])),
-          mats[i_bgraph] : tuple(map(int, periph_rgb[4])),
-          mats[i_pebgraph] : tuple(map(int, periph_rgb[2])),
-          mats[i_layer] : tuple(map(int, periph_rgb[3])),
-          mats[i_he] : tuple(map(int, periph_rgb[5])),
-          mats[i_ss] : tuple(map(int, periph_rgb[0]))}
 
-for i, nd_comp in enumerate(nd_comps):
-    i_uco = np.argmax(matnames == nd_comp)
-    colors[mats[i_uco]] = tuple(map(int, nd_rgb[i]))
 
-for i in range(len(zones)):
-    uco_name = 'hist_' + str(i+1)
-    i_uco = np.argmax(matnames == uco_name)
-    colors[mats[i_uco]] = tuple(map(int, dep_rgb[i]))
 
 ###############------------------- GEOMETRY -------------------###############
 
-#--- pebbles ---#
+#--- pebbles ---# 
+
 
 # used by all pebbles
 uco_bounds = openmc.Sphere(r=triso_R[0])
@@ -362,13 +398,10 @@ fueled_zone = openmc.Sphere(r=fueled_R)
 unfueled_zone = openmc.Sphere(r=peb_R)
 fueled_reg = -fueled_zone
 unfueled_reg = +fueled_zone & -unfueled_zone
-triso_centers = openmc.model.pack_spheres(radius=triso_R[1],
-                                          region=fueled_reg,
-                                          num_spheres=19000,
-                                          seed = 16541846)
+triso_centers = np.loadtxt(triso_file)
 sphere = openmc.Cell(region=fueled_reg)
 ll_peb, ur_peb = sphere.region.bounding_box
-shape_peb = (2, 2, 2)
+shape_peb = {{triso_latt_shape}}
 pitch_peb = (ur_peb - ll_peb)/shape_peb
 
 # non-depleting
@@ -392,28 +425,19 @@ for u in ndep_triso_univs:
     univ = openmc.Universe(cells=cells)
     ndep_univs.append(univ)
 
-pcount = np.zeros(6)
+
 ndep_log = {}
 pebbles = []
 for i in ndep_i:
     i_pass = rng.integers(0, n_pass)
     ndep_log[int(i)] = int(i_pass)
-    pcount[i_pass] += 1
     pebbles.append(openmc.model.TRISO(peb_R,
                                       ndep_univs[i_pass],
                                       peb_xyz[i]))
-
-with open('ndep_log.json', mode='w') as f:
+with open('ndep_log0.json', mode='w') as f:
     json.dump(ndep_log, f, indent=4)
 
-pmin = min(pcount)
-pratio = pcount/pmin
-ratio_str = ''
-for ratio in pratio[:-1]:
-    ratio_str +=  f'{ratio:.2f}/'
-ratio_str += f'{pratio[-1]:.2f}'
-print(f'ND pebble compositions in {ratio_str} ratio.')
-
+# depleting
 dep_triso_univs = []
 for i in range(len(zones)):
     dep_name = 'hist_' + str(i)
@@ -440,23 +464,9 @@ for i, info in dep_log.items():
                                       dep_univs[info['i_zone']], 
                                       peb_xyz[i]))
 
-ll_active = np.array([-active_r, -active_r, refl_zmin])
-ur_active = np.array([active_r, active_r, active_zmax])
-shape_active = (4, 4, 6)
-pitch_active = (ur_active - ll_active)/shape_active
-active_lattice = openmc.model.create_triso_lattice(pebbles,
-                                                   ll_active,
-                                                   pitch_active,
-                                                   shape_active,
-                                                   mats[i_he])
-
-
 #--- core periphery ---#
 
 active_out = openmc.ZCylinder(x0=x_c, y0=y_c, r=active_r)
-chute_wall = openmc.ZCone(x0=x_c, y0=y_c, z0=chute_apex_z, 
-                          r2 = chute_r2)
-outlet_wall = openmc.ZCylinder(x0=x_c, y0=y_c, r=chute_r)
 skirt_in = openmc.ZCylinder(x0=x_c, y0 = y_c, r=skirt_rin)
 skirt_out = openmc.ZCylinder(x0=x_c, y0=y_c, r= skirt_rout)
 refl_in = openmc.ZCylinder(x0=x_c, y0=y_c, r=refl_rin)
@@ -465,7 +475,6 @@ rpv_out = openmc.ZCylinder(x0=x_c, y0=y_c, r=rpv_rout,
                            boundary_type='vacuum')
 active_top = openmc.ZPlane(z0=active_zmax)
 active_bot = openmc.ZPlane(z0=active_zmin)
-chute_bot = openmc.ZPlane(z0=chute_zmin)
 refl_top = openmc.ZPlane(z0=refl_zmax)
 refl_bot = openmc.ZPlane(z0=refl_zmin)
 rpv_top = openmc.ZPlane(z0=rpv_zmax, boundary_type='vacuum')
@@ -477,17 +486,13 @@ coolch_voids = [openmc.ZCylinder(x0=xy[0], y0=xy[1],
                                  r=coolch_r) 
                 for i, xy in enumerate(coolch_xy)]
 
-main_core_reg = -active_out & +active_bot & -active_top
-chute_reg = -chute_wall & +chute_bot & -active_bot
-outlet_reg = -outlet_wall & +refl_bot & -chute_bot
-active_reg = main_core_reg | chute_reg | outlet_reg
-subskirt_side_reg = +refl_in & -skirt_in & +active_bot & -active_top
-subskirt_bot_reg = -skirt_in & +chute_wall & +chute_bot & -active_bot
-subskirt_reg = subskirt_side_reg | subskirt_bot_reg
-skirt_reg = +skirt_in & -skirt_out & +chute_bot & -active_top
-refl_side_reg = +skirt_out & -refl_out & +chute_bot & -active_top
+active_reg = -active_out & +active_bot & -active_top
+
+subskirt_reg = +refl_in & -skirt_in & +active_bot & -active_top
+skirt_reg = +skirt_in & -skirt_out & +active_bot & -active_top
+refl_side_reg = +skirt_out & -refl_out & +active_bot & -active_top
 refl_top_reg = -refl_out & +active_top & -refl_top
-refl_bot_reg = +outlet_wall & -refl_out & -chute_bot & +refl_bot
+refl_bot_reg = -refl_out & -active_bot & +refl_bot
 
 coolch_regs = []
 for i, ch in enumerate(coolch_voids):
@@ -502,8 +507,17 @@ rpv_top_reg = -rpv_out & +refl_top & -rpv_top
 rpv_bot_reg = -rpv_out & -refl_bot & +rpv_bot
 rpv_reg = rpv_side_reg | rpv_top_reg | rpv_bot_reg
 
-active = openmc.Cell(fill=active_lattice,
-                     region=active_reg)
+active = openmc.Cell(region=active_reg)
+ll_active, ur_active = active.region.bounding_box
+shape_active = {{peb_latt_shape}}
+pitch_active = (ur_active - ll_active)/shape_active
+active_lattice = openmc.model.create_triso_lattice(pebbles,
+                                                   ll_active,
+                                                   pitch_active,
+                                                   shape_active,
+                                                   mats[i_he])
+active.fill = active_lattice
+
 subskirt = openmc.Cell(fill=mats[i_graph],
                        region=subskirt_reg)
 skirt = openmc.Cell(fill=mats[i_bgraph],
@@ -522,67 +536,36 @@ cells = [active, subskirt, skirt, refl, rpv] + coolch
 
 universe = openmc.Universe(cells = cells)
 geometry = openmc.Geometry(universe)
-geometry.export_to_xml()
+
 shannon_mesh = openmc.RegularMesh()
 shannon_mesh.lower_left = (-rpv_rout, -rpv_rout, rpv_zmin)
 shannon_mesh.upper_right = (rpv_rout, rpv_rout, rpv_zmax)
-shannon_mesh.dimension=(5, 5, 10)
-
-
+shannon_mesh.dimension= {{shannon_mesh_shape}}
 settings = openmc.Settings()
-settings.temperature={'method':'interpolation'}
-settings.output = {'summary':False}
+settings.temperature={'method':{{temp_method}},
+                      'default' : default_temp,
+                      'tolerance' : 100.0,
+                      'range':(min_temp, max_temp)}
+settings.output = {'tallies' : False}
 settings.verbosity=7
-settings.particles=(15000)
-settings.generations_per_batch = 3
+settings.particles=(10000)
+settings.generations_per_batch = 2
 settings.batches = 150
-settings.inactive = 25
+settings.inactive = 20
 settings.entropy_mesh = shannon_mesh
-settings.export_to_xml()
-
-xyplot = openmc.SlicePlot()
-xyplot.basis='xy'
-xyplot.origin = (0, 0, rpv_zmin+(rpv_zmax-rpv_zmin)/2)
-xyplot.width = (470, 470)
-xyplot.pixels = (1410, 1410)
-xyplot.color_by = 'material'
-xyplot.colors = colors
-
-xzplot = openmc.SlicePlot()
-xzplot.basis='xz'
-xzplot.origin = (0, 0, rpv_zmin+(rpv_zmax-rpv_zmin)/2)
-xzplot.width = (470, 1300)
-xzplot.pixels = (1410, 3900)
-xzplot.color_by = 'material'
-xzplot.colors = colors
-
-plots = openmc.Plots([xyplot, xzplot])
-
-for i in plot_i:
-    plot_xyz = peb_xyz[i]
-    plots.append(openmc.SlicePlot())
-    plots[-1].basis='xy'
-    plots[-1].origin = (plot_xyz[0], plot_xyz[1], plot_xyz[2])
-    plots[-1].width = (6, 6)
-    plots[-1].pixels = (2000, 2000)
-    plots[-1].color_by = 'material'
-    plots[-1].colors = colors
-
-plots.export_to_xml()
-
-egroup_81_edges = np.loadtxt('81-group-HTGR.csv', skiprows=1, delimiter=' ')[:,0]
-egroup_81 = openmc.mgxs.EnergyGroups(egroup_81_edges)
+settings.seed = univ_seed
+# --- stop here for mats/geom/settings generating files ---#
 power = 165*(10**6) # 165 MW in Watts
 timesteps = [1] # days
 model = openmc.model.Model(geometry=geometry, 
                            settings=settings, 
                            materials=mats)
-model.convert_to_multigroup(groups = egroup_81)
-op = openmc.deplete.CoupledOperator(model)
-openmc.deplete.CECMIntegrator(op, 
-                              timesteps, 
-                              power, 
-                              timestep_units='d').integrate()
+op = openmc.deplete.CoupledOperator(model = model,
+                                    normalization_mode = 'energy-deposition')
+cecm = openmc.deplete.CECMIntegrator(operator = op, 
+                                     timesteps = timesteps, 
+                                     power = power, 
+                                     timestep_units='d')
 
-
+cecm.integrate()
 

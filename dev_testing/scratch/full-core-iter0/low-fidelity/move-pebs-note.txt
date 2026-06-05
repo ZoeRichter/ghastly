@@ -1,7 +1,0 @@
-to move pebs, use openmc implementation of JT algo.  Can call _close_blah_blah()
-instead of pack_spheres.  You need a domain.  the domain is the container
-cylinder class thing unique to the packing spheres source code.
-you make the domain with a region, which in your case should probably be
-bed_reg, so the pf is correct.  make the domain container thing
-manually, pass your recently moved spheres to _closewhatsitfuck, let it
-fix overlaps.  pray it takes less time than packing from scratch.
