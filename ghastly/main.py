@@ -636,7 +636,7 @@ def write_dep_materials(inputfile, depmat_file, depmat_template):
     input_block = read_input.InputBlock(input_file)
     sim_block = input_block.create_obj()
 
-def write_geometry0(input_file, geometry_file, geometry_template):
+def write_geometry_periph(input_file, geometry_file, geometry_template):
     '''
     Given Ghastly input file, write the python file that will generate
     geometry.xml when run.
@@ -645,6 +645,7 @@ def write_geometry0(input_file, geometry_file, geometry_template):
     sim_block = input_block.create_obj()
 
     params = {'seed' : 0,
+              'sim_id':'red',
               'pf' : 0,
               'peb_R' : 0,
               'fueled_R' : 0,
@@ -670,9 +671,7 @@ def write_geometry0(input_file, geometry_file, geometry_template):
               'rpv_zmin' : 0,
               'zone_bounds' : [],
               'latt_R' : 0,
-              'mat_file' : 'materials.xml',
-              'peb_latt_shape' : (4, 4, 4),
-              'core_latt_shape' : (6, 6, 12)}
+              'mat_file' : 'materials.xml'}
 
 def write_settings(inputfile, settings_file, settings_template):
     '''
