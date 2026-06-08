@@ -37,7 +37,7 @@ rpv_zmin = -154
 
 ###############------------------- MATERIALS ------------------###############
 
-mats = openmc.Materials.from_xml('ndep_mats.xml')
+mats = openmc.Materials.from_xml('initial_mats.xml')
 matnames = np.array([mat.name for mat in mats])
 
 #--- determine material names ---#
