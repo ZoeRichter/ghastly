@@ -505,10 +505,10 @@ def transit_profiler(d_h5, r_h5, cycle_days = 183, name_key='',
                             sample_r0[i_sam] = r/120
                             r_count += 1
                         peb_cycled[i_sam] += n_r[i_cyc]
-                        if np.isclose(last_xyz[i_sam], set_xyz[i_peb], atol=0.5):
+                        if np.allclose(last_xyz[i_sam], set_xyz[i_peb], atol=0.5):
                             continue
                         else:
-
+                            disp = 1 #safetyfix
                             tracklength[i_sam] += disp
                     else:
                         last_xyz[i_sam] = set_xyz[i_peb]
