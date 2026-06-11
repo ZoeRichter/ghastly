@@ -8,7 +8,7 @@ from matplotlib import colormaps
 
 def velocity_profiler(d_h5, r_h5, zone_bounds = [0, 10, 15, 20], 
                       chute_zmin = 0.0, chute_zmax = 54.0, 
-                      chute_R = 24.0, core_R = 120.0,
+                      chute_R = 24.0, core_R = 120.0, peb_inv = 223000,
                       cycle_days = 183, name_key='', verbose=True):
     '''
     given input info, return indices (aka UIDs) of pebbles that create the
@@ -36,7 +36,6 @@ def velocity_profiler(d_h5, r_h5, zone_bounds = [0, 10, 15, 20],
         peb_D = 2*peb_R
         init_xyz = d5f['XYZ'][0]
         init_z = [xyz[2] for xyz in init_xyz]
-        peb_inv = len(init_z)
         p_per_d = peb_inv/cycle_days
         init_layer = d5f['layer'][0]
         bed_top = max(init_z)
@@ -77,11 +76,11 @@ def velocity_profiler(d_h5, r_h5, zone_bounds = [0, 10, 15, 20],
             print()
         
         old_z = init_z
-        old_recirc = np.zeros(peb_inv)
+        old_recirc = np.zeros(len(init_xyz))
         v_d = [[np.zeros(n_zones) for _ in range(n_layers)]
-               for _ in range(peb_inv)]
+               for _ in range(len(init_xyz))]
         n_v = [[np.zeros(n_zones) for _ in range(n_layers)]
-               for _ in range(peb_inv)]
+               for _ in range(len(init_xyz))]
         for i_cyc, i_set in enumerate(i_settled):
             if verbose and i_cyc%i_yap == 0:
                 progress = 100*(((i_cyc//i_yap)*i_yap)/n_settled)
@@ -328,7 +327,7 @@ def velocity_plottog(dcsv_a, name_a, dcsv_b, name_b, peb_D,
 
     for i in range(n_prog):
         plt.plot(-1*prog_r, pebprog_a[i], 
-                     linestyle='-', marker='o',label = f'Day {i*15}',
+                     linestyle='-', marker='o',label = f'_nolabel',
                      color = plt_rgb[prog_rgb[i]])
         plt.plot(prog_r, pebprog_b[i], 
                      linestyle='-', marker='o',label = f'Day {i*15}',
@@ -381,7 +380,7 @@ def velocity_plottog(dcsv_a, name_a, dcsv_b, name_b, peb_D,
 
     for i in range(n_prog):
         plt.plot(-1*prog_r2, pebprog_a[i], 
-                     linestyle='-', marker='o',label = f'Day {i*15}',
+                     linestyle='-', marker='o',label = f'_nolabel',
                      color = plt_rgb[prog_rgb[i]])
         plt.plot(prog_r2, pebprog_b[i], 
                      linestyle='-', marker='o',label = f'Day {i*15}',
@@ -475,43 +474,46 @@ def transit_profiler(d_h5, r_h5, cycle_days = 183, name_key='',
         init_xyz = d5f['XYZ'][0]
         init_r = [sum(xyz[0:2]**2)**0.5 for xyz in init_xyz]
         peb_inv = len(init_r)
-        p_per_d = peb_inv/cycle_days
+        p_per_d = 223000/cycle_days
         bed_zmax = max([xyz[2] for xyz in init_xyz])
-        safe_zmax = bed_zmax - 4.0*peb_D
-        margin = 0.5*peb_R
+        safe_zmax = bed_zmax - 2*peb_D
+
         enough = False
         while not enough:
             sample = [i for i, xyz in enumerate(init_xyz) 
-                       if xyz[2] <= (safe_zmax + margin) 
-                       and xyz[2] >= (safe_zmax - margin)]
-            if len(sample) >= 1000:
+                       if xyz[2] >= safe_zmax]
+            if len(sample) >= 5000:
                 enough = True
             else:
-                margin += 0.05*peb_R
+                safe_zmax += -0.05*peb_R
+        
+
         N_s = len(sample)
         sample_r = [init_r[i] for i in sample]
         old_xyz = [init_xyz[i] for i in sample]
         tracklength = np.zeros(len(sample))
         pebcycled = np.zeros(len(sample))
+        res_time = np.zeros(len(sample))
         for i_cyc, i_set in enumerate(i_settled):
             set_xyz = d5f['XYZ'][i_set]
-            sample_xyz = [set_xyz[i] for i in sample]
+            #sample_xyz = [set_xyz[i] for i in sample]
             set_recircn = d5f['recirc_n'][i_set]
-            sample_recircn = [set_recircn[i] for i in sample]
-            if sum(sample_recircn) == len(sample_recircn):
-                print('All pebbles have completed their transit')
-                break
-            for i in range(N_s):
+            #sample_recircn = [int(set_recircn[i]) for i in sample]
+            #if sum(sample_recircn) == len(sample_recircn):
+                #print('All pebbles have completed their transit')
+                #break
+            #for i in range(N_s):
                 if sample_recircn[i] != 0:
                     pass
                 else:
-                    pebcycled[i] = n_r_cumul[i_cyc+1]
+                    pebcycled[i] = n_r_cumul[i_cyc]
                     distance = sum((old_xyz[i] - sample_xyz[i])**2)**0.5
                     tracklength[i] += distance
+                    res_time[i] = n_r_cumul[i_cyc]/p_per_d
             old_xyz=sample_xyz
 
         transit_num = pebcycled/peb_inv
-        res_time = pebcycled/p_per_d
+
         
         n_plots = 3
         transit_rgb = int(n_rgb/(n_plots+2))*np.arange(n_plots+2)[1:-1]
@@ -520,7 +522,7 @@ def transit_profiler(d_h5, r_h5, cycle_days = 183, name_key='',
         plt.xlim(0, 120)
         plt.xlabel('Initial relative radial position [r/R]')
         plt.ylabel('Total tracklength [cm]')
-        plt.title('Tracklength vs relative radius; sample of {n_t} pebbles')
+        plt.title(f'Tracklength vs relative radius; sample of {N_s} pebbles')
         trackpng = f'{name_key}tracklength.png'
         plt.savefig(trackpng)
         plt.close()
@@ -530,7 +532,7 @@ def transit_profiler(d_h5, r_h5, cycle_days = 183, name_key='',
         plt.xlim(0, 120)
         plt.xlabel('Initial relative radial position [r/R]')
         plt.ylabel('Transit number [-]')
-        plt.title('Transit number vs relative radius; sample of {n_t} pebbles')
+        plt.title(f'Transit number vs relative radius; sample of {N_s} pebbles')
         transitpng = f'{name_key}transitnumber.png'
         plt.savefig(transitpng)
         plt.close()
@@ -540,15 +542,23 @@ def transit_profiler(d_h5, r_h5, cycle_days = 183, name_key='',
         plt.xlim(0, 120)
         plt.xlabel('Initial relative radial position [r/R]')
         plt.ylabel('Residence time [days]')
-        plt.title('Residence time vs relative radius; sample of {n_t} pebbles')
+        plt.title(f'Residence time vs relative radius; sample of {N_s} pebbles')
         restimepng = f'{name_key}restime.png'
         plt.savefig(restimepng)
         plt.close()
 
+        plt.hist(res_time, bins = 20, rwidth =0.9, 
+                 color = plt_rgb[transit_rgb[2]])
+        plt.xlabel('Residence time [days]')
+        plt.ylabel('Number of pebbles')
+        plt.title('Histogram of pebble residence times')
+        plt.savefig(f'{name_key}reshist.png')
+        plt.close()
+
 
 def deadzone(d_h5, r_h5, target_vmag = 5.0, frac = 0.10, 
-             zone_bounds = [0, 10, 15, 20], n_layers = 15, cycle_days = 183, 
-             name_key='', verbose=True, n_rgb=1000, 
+             zone_bounds = [0, 10, 15, 20], n_layers = 15, peb_inv = 223000,
+             cycle_days = 183, name_key='', verbose=True, n_rgb=1000, 
              c0 = 0.1, c1 = 0.9, cmap='magma_r'):
     '''
     given data h5 and recirc h5, characterize the deadzone
@@ -581,7 +591,6 @@ def deadzone(d_h5, r_h5, target_vmag = 5.0, frac = 0.10,
         init_z = [xyz[2] for xyz in init_xyz] 
         zmax = 200
         zmin = 0
-        peb_inv = len(init_xyz)
         p_per_d = peb_inv/cycle_days
         dead_threshold = frac*target_vmag
         print(n_r_avg, dead_threshold)
@@ -604,7 +613,7 @@ def deadzone(d_h5, r_h5, target_vmag = 5.0, frac = 0.10,
             
             xyz0 = set_xyz
         
-        dead_inv = np.zeros(peb_inv)
+        dead_inv = np.zeros(len(init_xyz))
         for i_set, deadkey in deadzone.items():
             i_rgb = int(n_rgb*(i_set/i_settled[-1])-1)
             set_xyz = d5f['XYZ'][i_set]
@@ -742,7 +751,7 @@ def plot_paratog(name_a, d_h5a, r_h5a, name_b, d_h5b, r_h5b,
                 
 
 
-def find_i_day(d_h5, r_h5, day, 
+def find_i_day(d_h5, r_h5, day, peb_inv = 223000,
                   cycle_days = 183, name_key='', verbose=True):
     '''
     given database, total elapsed days at the desired dep,
@@ -754,10 +763,9 @@ def find_i_day(d_h5, r_h5, day,
         Nr = r5f.attrs['Nsteps']
         r_steps = np.arange(Nr)
         Nrcumul = list(r5f['n_recirc_cumul'])
-        peb_inv = d5f['XYZ'][0].shape[0]
+        nr_i = list(r5f['n_recirc_step'])
         p_per_d = peb_inv/cycle_days
-        peb_sofar = day*p_per_d
-        
-        search = abs(Nrcumul/peb_sofar - 1)
+        pebsofar = day*p_per_d 
+        search = abs(Nrcumul/pebsofar - 1)
         i_day = np.argmax(search == min(search))
-        return i_day
+    return i_day
