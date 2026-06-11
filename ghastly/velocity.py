@@ -443,8 +443,8 @@ def velocity_plottog(dcsv_a, name_a, dcsv_b, name_b, peb_D,
 
 
 
-def transit_profiler(d_h5, r_h5, cycle_days = 183, name_key='',
-                     verbose = True, n_rgb=100, 
+def transit_profiler(d_h5, r_h5, cycle_days = 183, name_key='', 
+                     peb_inv = 223000, verbose = True, n_rgb=100, 
                      c0 = 0.1, c1 = 0.9, cmap='magma_r'):
     '''
     given data h5 and recirc h5, select a sample of pebbles at the top of the
@@ -473,86 +473,126 @@ def transit_profiler(d_h5, r_h5, cycle_days = 183, name_key='',
         peb_D = 2*peb_R
         init_xyz = d5f['XYZ'][0]
         init_r = [sum(xyz[0:2]**2)**0.5 for xyz in init_xyz]
-        peb_inv = len(init_r)
-        p_per_d = 223000/cycle_days
-        bed_zmax = max([xyz[2] for xyz in init_xyz])
-        safe_zmax = bed_zmax - 2*peb_D
+        p_per_d = peb_inv/cycle_days
 
-        enough = False
-        while not enough:
-            sample = [i for i, xyz in enumerate(init_xyz) 
-                       if xyz[2] >= safe_zmax]
-            if len(sample) >= 5000:
-                enough = True
-            else:
-                safe_zmax += -0.05*peb_R
-        
-
+        tend_recirc_n = d5f['recirc_n'][-1]
+        sample = [i for i, r_n in enumerate(tend_recirc_n) if r_n == 2]
         N_s = len(sample)
-        sample_r = [init_r[i] for i in sample]
-        old_xyz = [init_xyz[i] for i in sample]
-        tracklength = np.zeros(len(sample))
-        pebcycled = np.zeros(len(sample))
-        res_time = np.zeros(len(sample))
+        safe_z = 17*54 - peb_D
+
+        res_time = np.zeros(N_s)
+        peb_cycled = np.zeros(N_s)
+        peb_cycledb = np.zeros(N_s)
+        tracklength = np.zeros(N_s)
+        sample_r0 = -1*np.ones(N_s)
+        last_xyz = np.empty(N_s, dtype=object)
+        step_pass = np.zeros(N_s)
+        r_count = 0
         for i_cyc, i_set in enumerate(i_settled):
             set_xyz = d5f['XYZ'][i_set]
-            #sample_xyz = [set_xyz[i] for i in sample]
             set_recircn = d5f['recirc_n'][i_set]
-            #sample_recircn = [int(set_recircn[i]) for i in sample]
-            #if sum(sample_recircn) == len(sample_recircn):
-                #print('All pebbles have completed their transit')
-                #break
-            #for i in range(N_s):
-                if sample_recircn[i] != 0:
-                    pass
-                else:
-                    pebcycled[i] = n_r_cumul[i_cyc]
-                    distance = sum((old_xyz[i] - sample_xyz[i])**2)**0.5
-                    tracklength[i] += distance
-                    res_time[i] = n_r_cumul[i_cyc]/p_per_d
-            old_xyz=sample_xyz
+            sample_recircn = [int(set_recircn[i_peb]) for i_peb in sample]
+            if sum(sample_recircn) == 2*N_s:
+                print('all tracked pebbles left')
+                break
+            for i_sam, i_peb in enumerate(sample):
+                if set_recircn[i_peb] == 0 or set_recircn[i_peb] == 2:
+                    continue
+                elif set_recircn[i_peb] == 1: 
+                    if last_xyz[i_sam] is not None and step_pass[i_sam] >= 2:
+                        if set_xyz[i_peb][2] <= safe_z and sample_r0[i_sam] == -1.0:
+                            r = sum(set_xyz[i_peb][0:2]**2)**0.5
+                            sample_r0[i_sam] = r/120
+                            r_count += 1
+                        peb_cycled[i_sam] += n_r[i_cyc]
+                        if np.isclose(last_xyz[i_sam], set_xyz[i_peb], atol=0.5):
+                            continue
+                        else:
 
-        transit_num = pebcycled/peb_inv
+                            tracklength[i_sam] += disp
+                    else:
+                        last_xyz[i_sam] = set_xyz[i_peb]
+                        step_pass[i_sam] += 1
 
-        
-        n_plots = 3
+        transit_num = peb_cycled/peb_inv
+        res_time = peb_cycled/p_per_d
+        print(min(res_time), max(res_time))
+
+
+        n_plots = 4
         transit_rgb = int(n_rgb/(n_plots+2))*np.arange(n_plots+2)[1:-1]
-        plt.plot(sample_r, tracklength, color = plt_rgb[transit_rgb[0]],
+        
+        plt.plot(sample_r0, tracklength, color = plt_rgb[transit_rgb[0]],
                  linestyle = '', marker = '.')
-        plt.xlim(0, 120)
+        plt.xlim(0, 1)
         plt.xlabel('Initial relative radial position [r/R]')
-        plt.ylabel('Total tracklength [cm]')
-        plt.title(f'Tracklength vs relative radius; sample of {N_s} pebbles')
+        plt.ylabel('Total track length [m]')
+        plt.title(f'Track length in meters vs relative radial position')
         trackpng = f'{name_key}tracklength.png'
         plt.savefig(trackpng)
         plt.close()
 
-        plt.plot(sample_r, transit_num, color = plt_rgb[transit_rgb[1]],
-                 linestyle = '', marker = '.')
-        plt.xlim(0, 120)
-        plt.xlabel('Initial relative radial position [r/R]')
-        plt.ylabel('Transit number [-]')
-        plt.title(f'Transit number vs relative radius; sample of {N_s} pebbles')
-        transitpng = f'{name_key}transitnumber.png'
-        plt.savefig(transitpng)
+        plt.hist(tracklength, bins = 25, rwidth =0.9, 
+                 color = plt_rgb[transit_rgb[0]])
+        plt.xlabel('Track length [m]')
+        plt.ylabel('Number of pebbles')
+        plt.title('Histogram of pebble track lengths')
+        plt.savefig(f'{name_key}trackhist.png')
         plt.close()
 
-        plt.plot(sample_r, res_time, color = plt_rgb[transit_rgb[2]],
+        plt.plot(sample_r0, tracklength/res_time, 
+                 color = plt_rgb[transit_rgb[1]],
                  linestyle = '', marker = '.')
-        plt.xlim(0, 120)
+        plt.xlim(0, 1)
+        plt.xlabel('Initial relative radial position [r/R]')
+        plt.ylabel('Calculated Velocity [cm/day]')
+        plt.title(f'Calculated velocity vs relative radius')
+        velpng = f'{name_key}vel_calc.png'
+        plt.savefig(velpng)
+        plt.close()
+
+        plt.hist(tracklength/res_time, bins = 25, rwidth =0.9, 
+                 color = plt_rgb[transit_rgb[1]])
+        plt.xlabel('Calculated velocity [cm/day]')
+        plt.ylabel('Number of pebbles')
+        plt.title('Histogram of pebble velocities')
+        plt.savefig(f'{name_key}velhist.png')
+        plt.close()
+
+        plt.plot(sample_r0, res_time, color = plt_rgb[transit_rgb[2]],
+                 linestyle = '', marker = '.')
+        plt.xlim(0, 1)
         plt.xlabel('Initial relative radial position [r/R]')
         plt.ylabel('Residence time [days]')
-        plt.title(f'Residence time vs relative radius; sample of {N_s} pebbles')
+        plt.title(f'Residence time vs relative radius')
         restimepng = f'{name_key}restime.png'
         plt.savefig(restimepng)
         plt.close()
 
-        plt.hist(res_time, bins = 20, rwidth =0.9, 
+        plt.hist(res_time, bins = 25, rwidth =0.9, 
                  color = plt_rgb[transit_rgb[2]])
         plt.xlabel('Residence time [days]')
         plt.ylabel('Number of pebbles')
         plt.title('Histogram of pebble residence times')
         plt.savefig(f'{name_key}reshist.png')
+        plt.close()
+
+        plt.plot(sample_r0, transit_num, color = plt_rgb[transit_rgb[3]],
+                 linestyle = '', marker = '.')
+        plt.xlim(0, 1)
+        plt.xlabel('Initial relative radial position [r/R]')
+        plt.ylabel('Transit number [-]')
+        plt.title(f'Transit number vs relative radius')
+        transitpng = f'{name_key}transitnumber.png'
+        plt.savefig(transitpng)
+        plt.close()
+
+        plt.hist(transit_num, bins = 25, rwidth =0.9, 
+                 color = plt_rgb[transit_rgb[3]])
+        plt.xlabel('Transit number [-]')
+        plt.ylabel('Number of pebbles')
+        plt.title('Histogram of pebble transit numbers')
+        plt.savefig(f'{name_key}transithist.png')
         plt.close()
 
 
