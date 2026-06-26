@@ -42,7 +42,7 @@ def shift_lattice(dep_z, latt_D, layer_a_z, peb_vz, days_cumul):
     return shift
 
 
-def _latt_z_array(latt_D, active_R, peb_R, n_pebs, pf):
+def _latt_z_arrays(latt_D, active_R, peb_R, n_pebs, pf):
     '''
     given input args, calculates and returns z-axis lattice spacing
     for the layer configuration that can have dep-pebbles
@@ -52,11 +52,19 @@ def _latt_z_array(latt_D, active_R, peb_R, n_pebs, pf):
 
     a0 = latt_D*np.array([0, 0, 0.5])
     layer_z_offset = latt_D*np.array([0, 0, 3**0.5])
+    layer_b_offset = latt_D*np.array([0.5, 1/(2*3**0.5), (2/3)**0.5])
+
     N_layer_a = int((bed_zmax - latt_D)/layer_z_offset[2])
+    N_layer_b = int((bed_zmax - layer_b_offset[2] - 0.5*latt_D)/
+                    layer_z_offset[2])
+    
     layer_a_z = ([a0[2]] + [a0[2] + (i+1)*layer_z_offset[2] 
                             for i in range(N_layer_a)])
+    layer_b_z = ([a0[2]+layer_b_offset[2]] + 
+                 [a0[2]+layer_b_offset[2] + (i+1)*layer_z_offset[2] 
+                  for i in range(N_layer_b)])
 
-    return layer_a_z
+    return layer_a_z, layer_b_z
 
 def gen_periph_geom(input_file):
     '''

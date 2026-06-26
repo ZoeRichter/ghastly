@@ -280,6 +280,65 @@ def velocity_plotter(d_csv, peb_D, zone_bounds = [0, 10, 15, 20],
     plt.savefig(velprofpng, bbox_inches = 'tight', dpi = 600)
     plt.close()
 
+def velocity_plotall3(dcsv_a, name_a, dcsv_b, name_b, dcsv_c, name_c, peb_D, 
+                     zone_bounds = [0, 10, 15, 20], n_layers = 17, 
+                     cycle_days = 183, name_key='', verbose=True, 
+                     progymin = -1000, progymax = 1000, 
+                     vzymin = -11, vzymax = -3, 
+                     latt_zmax = 920.35, latt_zmin = 0,
+                     n_rgb=100, c0 = 0.1, c1 = 0.9, cmap='magma_r'):
+    '''
+    given csvs with corewise velocity data a and velocity data b with the same
+    radial zone boundaries, plot them together with a using a -r axis so they 
+    meet at 0
+    '''
+
+    with open(dcsv_a, mode='r') as da: 
+        vr_a = np.loadtxt(da, delimiter=',')
+        vrprof_a = vr_a[-1]
+        zonevr_a = vr_a[:(n_layers-1)]
+
+    with open(dcsv_b, mode='r') as db: 
+        vr_b = np.loadtxt(db, delimiter=',')
+        vrprof_b = vr_b[-1]
+        zonevr_b = vr_b[:(n_layers-1)]
+
+    with open(dcsv_c, mode='r') as dc: 
+        vr_c = np.loadtxt(dc, delimiter=',')
+        vrprof_c = vr_c[-1]
+        zonevr_c = vr_c[:(n_layers-1)]
+    
+    plt_c = np.linspace(c0, c1, n_rgb)
+    plt_rgb = colormaps[cmap](plt_c)
+    
+    zones = peb_D*np.array(zone_bounds)
+    zones = np.array(zone_bounds)
+    n_zones = len(zones) - 1
+    zone_rgb = int(n_rgb/(n_zones+2))*np.arange(n_zones+2)[1:-1]
+    rticks =  np.array([int(zone) for zone in zones])/zones[-1]
+    r2ticks = rticks**2
+
+    plt.figure(layout='constrained', figsize=(7.0, 5.0))
+    plt.stairs(vrprof_a, r2ticks, lw=2.0, baseline=None,
+                     color = plt_rgb[int(n_rgb/4)], label = f'{name_a}')
+    plt.stairs(vrprof_b, r2ticks, lw=2.0, baseline=None,
+                     color = plt_rgb[int((2*n_rgb)/4)], label = f'{name_b}')
+    plt.stairs(vrprof_c, r2ticks, lw=2.0, baseline=None,
+                     color = plt_rgb[int((3*n_rgb)/4)], label = f'{name_c}')
+            
+    plt.vlines(r2ticks, vzymin, vzymax, lw=0.5,
+               label = '_zonemarker', color = plt_rgb[-1])
+    plt.title('Radial vz profile in main core region')
+    plt.legend()
+    plt.ylim(vzymin, vzymax)
+    plt.xlim(0, 1)
+    plt.xlabel('Effective relative fraction of core volume [-]')
+    plt.ylabel(r'Z-component of velocity [$\frac{cm}{day}$]')
+    plt.xticks(r2ticks, fontsize = 10, rotation=-70, ha='center')
+    velprofpng = f'{n_layers}axl_{n_zones}radz_velprofcumul{name_key}.png' 
+    plt.savefig(velprofpng, bbox_inches = 'tight', dpi = 600)
+    plt.close()
+
 
 def velocity_plottog(dcsv_a, name_a, dcsv_b, name_b, peb_D, 
                      zone_bounds = [0, 10, 15, 20], n_layers = 17, 
@@ -327,10 +386,10 @@ def velocity_plottog(dcsv_a, name_a, dcsv_b, name_b, peb_D,
 
     for i in range(n_prog):
         plt.plot(-1*prog_r, pebprog_a[i], 
-                     linestyle='-', marker='o',label = f'_nolabel',
+                     linestyle='-', marker='.',label = f'_nolabel',
                      color = plt_rgb[prog_rgb[i]])
         plt.plot(prog_r, pebprog_b[i], 
-                     linestyle='-', marker='o',label = f'Day {i*15}',
+                     linestyle='-', marker='.',label = f'Day {i*15}',
                      color = plt_rgb[prog_rgb[i]])
         
     plt.vlines(rticks, progymin, progymax, 
@@ -354,97 +413,98 @@ def velocity_plottog(dcsv_a, name_a, dcsv_b, name_b, peb_D,
 
 
     for i in range(n_zones):
-        rline_a = -1*np.linspace(zones[i], zones[i+1], 10)/zones[-1]
-        rline_b = np.linspace(zones[i], zones[i+1], 10)/zones[-1]
+        rline = np.linspace(zones[i], zones[i+1], 10)/zones[-1]
         vzline_a = vrprof_a[i]*np.ones(10)
         vzline_b = vrprof_b[i]*np.ones(10)
-        plt.plot(rline_a, vzline_a, lw=2.0,
+        plt.plot(rline, vzline_a, lw=2.0,
                      color = plt_rgb[int(n_rgb/3)], label = f'{name_a}')
-        plt.plot(rline_b, vzline_b, lw=2.0,
+        plt.plot(rline, vzline_b, lw=2.0,
                      color = plt_rgb[int((2*n_rgb)/3)], label = f'{name_b}')
             
-    plt.vlines(rticks, vzymin, vzymax, 
+    plt.vlines(rticksright, vzymin, vzymax, 
                label = '_zonemarker', color = plt_rgb[-1])
-    plt.suptitle('Radial vz profile in main core region')
-    plt.title(f'left: {name_a}, right: {name_b}')
+    plt.title('Radial vz profile in main core region')
+    plt.legend()
     plt.ylim(vzymin, vzymax)
-    plt.xlim(-1, 1)
+    plt.xlim(0, 1)
     plt.xlabel('r [cm]')
     plt.ylabel('Z-component of velocity [cm/day]')
-    plt.xticks(rticks, fontsize = 10, rotation = 90, ha = 'center')
-
+    plt.xticks(rticksright, fontsize = 10, rotation = -70, ha = 'center')
     velprofpng = f'{n_layers}axl_{n_zones}radz_velprof{name_key}.png'
     plt.savefig(velprofpng, bbox_inches = 'tight', dpi = 900)
     plt.close()
 
 
+    plt.figure(layout='constrained', figsize=(11, 8))
     for i in range(n_prog):
-        plt.plot(-1*prog_r2, pebprog_a[i], 
-                     linestyle='-', marker='o',label = f'_nolabel',
-                     color = plt_rgb[prog_rgb[i]])
-        plt.plot(prog_r2, pebprog_b[i], 
+        plt.plot(prog_r2, pebprog_a[i], 
                      linestyle='-', marker='o',label = f'Day {i*15}',
-                     color = plt_rgb[prog_rgb[i]])
-        
+                     color = plt_rgb[prog_rgb[i]])     
     plt.vlines(r2ticks, progymin, progymax, lw=0.5, 
                label = '_zonemarker', color = plt_rgb[-1])
-    plt.hlines(latt_zmax, -1, 1, label= '_coremarker',
+    plt.hlines(latt_zmax, 0, 1, label= '_coremarker',
                    linestyle = '--', color=plt_rgb[-1])
-    plt.hlines(latt_zmin, -1, 1, label= '_coremarker',
+    plt.hlines(latt_zmin, 0, 1, label= '_coremarker',
                    linestyle = '--', color=plt_rgb[-1])
     plt.legend(bbox_to_anchor=(1.01, 1.0))
 
-    plt.suptitle('Z coordinate of pebbles over time six months')  
-    plt.title(f'left: {name_a}, right: {name_b}')
+    plt.title('Z coordinate of pebbles over time six months')  
     plt.ylim(progymin, progymax)
-    plt.xlim(-1, 1)
+    plt.xlim(0, 1)
     plt.ylabel('Z [cm]')
-    plt.xlabel('Middle of Radial Zone [cm]') 
-    if len(zones) > 7:
-        r2ticks_less = np.concatenate((r2ticks[:n_zones-1], 
-                                       [r2ticks[n_zones]], 
-                                       r2ticks[n_zones+2:]))
-        plt.xticks(r2ticks_less, fontsize = 8, rotation = 90, ha = 'center')
-    else:
-        plt.xticks(r2ticks, fontsize = 8, rotation = 90, ha = 'center')
-    progpng = f'{n_layers}axl_{n_zones}radz_pebprogcumul{name_key}.png'
+    plt.xlabel(r'Center of $\frac{r_{peb}}{R_{core}}^2$ bin [-]') 
+    plt.xticks(r2ticksright, fontsize = 9, rotation = -70, ha = 'center')
+    progpng = f'{n_layers}axl_{n_zones}radz_pebprogcumul{name_a}.png'
     plt.savefig(progpng, bbox_inches = 'tight', dpi = 900)
     plt.close()
 
+    plt.figure(layout='constrained', figsize=(11, 8))
+    for i in range(n_prog):
+        plt.plot(prog_r2, pebprog_b[i], 
+                     linestyle='-', marker='o',label = f'Day {i*15}',
+                     color = plt_rgb[prog_rgb[i]])     
+    plt.vlines(r2ticks, progymin, progymax, lw=0.5, 
+               label = '_zonemarker', color = plt_rgb[-1])
+    plt.hlines(latt_zmax, 0, 1, label= '_coremarker',
+                   linestyle = '--', color=plt_rgb[-1])
+    plt.hlines(latt_zmin, 0, 1, label= '_coremarker',
+                   linestyle = '--', color=plt_rgb[-1])
+    plt.legend(bbox_to_anchor=(1.01, 1.0))
 
-    for i in range(n_zones):
-        rline_a = -1*np.linspace(zones[i]**2, zones[i+1]**2, 10)/zones[-1]**2
-        rline_b = np.linspace(zones[i]**2, zones[i+1]**2, 10)/zones[-1]**2
-        vzline_a = vrprof_a[i]*np.ones(10)
-        vzline_b = vrprof_b[i]*np.ones(10)
-        plt.plot(rline_a, vzline_a, lw=2.0,
+    plt.title('Z coordinate of pebbles over time six months')  
+    plt.ylim(progymin, progymax)
+    plt.xlim(0, 1)
+    plt.ylabel('Z [cm]')
+    plt.xlabel(r'Center of $\frac{r_{peb}}{R_{core}}^2$ bin [-]') 
+    plt.xticks(r2ticksright, fontsize = 9, rotation = -70, ha = 'center')
+    progpng = f'{n_layers}axl_{n_zones}radz_pebprogcumul{name_b}.png'
+    plt.savefig(progpng, bbox_inches = 'tight', dpi = 900)
+    plt.close()
+
+    
+    plt.figure(layout='constrained', figsize=(12, 5))
+    plt.stairs(vrprof_a, r2ticksright, lw=2.0, baseline=None,
                      color = plt_rgb[int(n_rgb/3)], label = f'{name_a}')
-        plt.plot(rline_b, vzline_b, lw=2.0,
+    plt.stairs(vrprof_b, r2ticksright, lw=2.0, baseline=None,
                      color = plt_rgb[int((2*n_rgb)/3)], label = f'{name_b}')
             
-    plt.vlines(r2ticks, vzymin, vzymax, lw=0.5,
+    plt.vlines(r2ticksright, vzymin, vzymax, lw=0.5,
                label = '_zonemarker', color = plt_rgb[-1])
-    plt.suptitle('Radial vz profile in main core region')
-    plt.title(f'left: {name_a}, right: {name_b}')
+    plt.title('Radial vz profile in main core region')
+    plt.legend()
     plt.ylim(vzymin, vzymax)
-    plt.xlim(-1, 1)
-    plt.xlabel('r^2 [cm]')
-    plt.ylabel('Z-component of velocity [cm/day]')
-    if len(zones) > 7:
-        r2ticks_less = np.concatenate((r2ticks[:n_zones-1], 
-                                       [r2ticks[n_zones]], 
-                                       r2ticks[n_zones+2:]))
-        plt.xticks(r2ticks_less, fontsize = 8, rotation = 90, ha = 'center')
-    else:
-        plt.xticks(r2ticks, fontsize = 8, rotation=90, ha='center')
-    velprofpng = f'{n_layers}axl_{n_zones}radz_velprofcumul{name_key}.png'
-    plt.savefig(velprofpng, bbox_inches = 'tight', dpi = 900)
+    plt.xlim(0, 1)
+    plt.xlabel('Effective relative fraction of core volume [-]')
+    plt.ylabel(r'Z-component of velocity [$\frac{cm}{day}$]')
+    plt.xticks(r2ticksright, fontsize = 9, rotation=90, ha='center')
+    velprofpng = f'{n_layers}axl_{n_zones}radz_velprofcumul{name_key}.png' 
+    plt.savefig(velprofpng, bbox_inches = 'tight', dpi = 600)
     plt.close()
 
 
 
 def transit_profiler(d_h5, r_h5, cycle_days = 183, name_key='', 
-                     peb_inv = 223000, verbose = True, n_rgb=100, 
+                     peb_inv = 223000, verbose = True, n_rgb=240, 
                      c0 = 0.1, c1 = 0.9, cmap='magma_r'):
     '''
     given data h5 and recirc h5, select a sample of pebbles at the top of the
@@ -474,20 +534,22 @@ def transit_profiler(d_h5, r_h5, cycle_days = 183, name_key='',
         init_xyz = d5f['XYZ'][0]
         init_r = [sum(xyz[0:2]**2)**0.5 for xyz in init_xyz]
         p_per_d = peb_inv/cycle_days
-
-        tend_recirc_n = d5f['recirc_n'][-1]
+        print(len(i_settled))
+        tend_recirc_n = d5f['recirc_n'][i_settled[-5]]
         sample = [i for i, r_n in enumerate(tend_recirc_n) if r_n == 2]
         N_s = len(sample)
-        safe_z = 17*54 - peb_D
+        safe_z = 17*54
 
         res_time = np.zeros(N_s)
         peb_cycled = np.zeros(N_s)
-        peb_cycledb = np.zeros(N_s)
         tracklength = np.zeros(N_s)
-        sample_r0 = -1*np.ones(N_s)
         last_xyz = np.empty(N_s, dtype=object)
+        sample_r0 = -1*np.ones(N_s)
         step_pass = np.zeros(N_s)
-        r_count = 0
+        sample_count = np.zeros(N_s)
+        streamline_xyz = [[] for _ in range(N_s)]
+        start = np.zeros(N_s)
+        stop = np.zeros(N_s)
         for i_cyc, i_set in enumerate(i_settled):
             set_xyz = d5f['XYZ'][i_set]
             set_recircn = d5f['recirc_n'][i_set]
@@ -497,32 +559,71 @@ def transit_profiler(d_h5, r_h5, cycle_days = 183, name_key='',
                 break
             for i_sam, i_peb in enumerate(sample):
                 if set_recircn[i_peb] == 0 or set_recircn[i_peb] == 2:
+                    if set_recircn[i_peb] == 2 and stop[i_sam] == 0.0:
+                        stop[i_sam] = i_cyc
                     continue
                 elif set_recircn[i_peb] == 1: 
-                    if last_xyz[i_sam] is not None and step_pass[i_sam] >= 2:
-                        if set_xyz[i_peb][2] <= safe_z and sample_r0[i_sam] == -1.0:
-                            r = sum(set_xyz[i_peb][0:2]**2)**0.5
-                            sample_r0[i_sam] = r/120
-                            r_count += 1
+                    sample_count[i_sam] += 1
+                    sam_xyz = set_xyz[i_peb]
+                    if step_pass[i_sam] > 2:
+                        if start[i_sam] == 0:
+                            start[i_sam] = i_cyc
+                        streamline_xyz[i_sam].append(sam_xyz)
                         peb_cycled[i_sam] += n_r[i_cyc]
-                        if np.allclose(last_xyz[i_sam], set_xyz[i_peb], atol=0.5):
-                            continue
+                        if sample_r0[i_sam] == -1.0:
+                            ri = sum(sam_xyz[0:2]**2)**0.5
+                            sample_r0[i_sam] = ri
+                        elif step_pass[i_sam] < 15:
+                            step_pass[i_sam] += 1
+                            ri = sum(sam_xyz[0:2]**2)**0.5
+                            if np.isclose(sample_r0[i_sam], ri, atol=0.5):
+                                pass
+                            else:
+                                sample_r0[i_sam] = ri
+                        
+                        ri = sum(sam_xyz[0:2]**2)**0.5
+                        if np.isclose(ri, sample_r0[i_sam], atol=0.3):
+                            disp = last_xyz[i_sam][2] - sam_xyz[2]
+                            if disp < 0:
+                                disp = 0 #only track progress, but tick up time
                         else:
-                            disp = 1 #safetyfix
-                            tracklength[i_sam] += disp
-                    else:
-                        last_xyz[i_sam] = set_xyz[i_peb]
-                        step_pass[i_sam] += 1
+                            last_r = sum(last_xyz[i_sam][0:2]**2)**0.5
+                            disp_r = last_r - ri
+                            if disp_r < 0:
+                                disp_r = 0
+                            disp_z = last_xyz[i_sam][2] - sam_xyz[2]
+                            if disp_z < 0:
+                                disp_z = 0
+                            disp = (disp_r**2 + disp_z**2)**0.5
+                        
+                        tracklength[i_sam] += disp
+                        last_xyz[i_sam] = sam_xyz
 
+                    else: 
+                        step_pass[i_sam] += 1
+                        last_xyz[i_sam] = set_xyz[i_peb]
+        
+        for i_s, s in enumerate(start):
+            if stop[i_s] == 0:
+                print(i_s, s, stop[i_s], stop[i_s]-s)
         transit_num = peb_cycled/peb_inv
         res_time = peb_cycled/p_per_d
-        print(min(res_time), max(res_time))
-
-
+        #print(min(res_time), max(res_time))
+        
+        stream_rgb = [int(r0) for r0 in sample_r0]
+        for i, pebble in enumerate(streamline_xyz):
+            i_rgb = 2*stream_rgb[i]
+            peb_r = [sum(xyz[0:2]**2)**0.5 for xyz in pebble]
+            peb_z = [xyz[2] for xyz in pebble]
+            plt.plot(peb_r, peb_z, color = plt_rgb[i_rgb], markevery=25,
+                     linestyle = '', marker='.')
+        plt.savefig('idk.png')
+        plt.close()
+        
         n_plots = 4
         transit_rgb = int(n_rgb/(n_plots+2))*np.arange(n_plots+2)[1:-1]
         
-        plt.plot(sample_r0, tracklength, color = plt_rgb[transit_rgb[0]],
+        plt.plot(sample_r0/120, tracklength, color = plt_rgb[transit_rgb[0]],
                  linestyle = '', marker = '.')
         plt.xlim(0, 1)
         plt.xlabel('Initial relative radial position [r/R]')
@@ -540,7 +641,7 @@ def transit_profiler(d_h5, r_h5, cycle_days = 183, name_key='',
         plt.savefig(f'{name_key}trackhist.png')
         plt.close()
 
-        plt.plot(sample_r0, tracklength/res_time, 
+        plt.plot(sample_r0/120, tracklength/res_time, 
                  color = plt_rgb[transit_rgb[1]],
                  linestyle = '', marker = '.')
         plt.xlim(0, 1)
@@ -558,8 +659,9 @@ def transit_profiler(d_h5, r_h5, cycle_days = 183, name_key='',
         plt.title('Histogram of pebble velocities')
         plt.savefig(f'{name_key}velhist.png')
         plt.close()
+        
 
-        plt.plot(sample_r0, res_time, color = plt_rgb[transit_rgb[2]],
+        plt.plot(sample_r0/120, res_time, color = plt_rgb[transit_rgb[2]],
                  linestyle = '', marker = '.')
         plt.xlim(0, 1)
         plt.xlabel('Initial relative radial position [r/R]')
@@ -577,7 +679,7 @@ def transit_profiler(d_h5, r_h5, cycle_days = 183, name_key='',
         plt.savefig(f'{name_key}reshist.png')
         plt.close()
 
-        plt.plot(sample_r0, transit_num, color = plt_rgb[transit_rgb[3]],
+        plt.plot(sample_r0/120, transit_num, color = plt_rgb[transit_rgb[3]],
                  linestyle = '', marker = '.')
         plt.xlim(0, 1)
         plt.xlabel('Initial relative radial position [r/R]')
